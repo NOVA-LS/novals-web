@@ -1,0 +1,397 @@
+// Esquema de NOVA Los Santos.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+/// Escalones del staff, de menos a más. El orden importa: quien está arriba
+/// puede todo lo de abajo, y un ticket solo lo ve quien llega a su nivel.
+enum Role {
+  USER
+  /// Corrige historias y whitelist.
+  INICIADOR
+  /// Dudas y soporte general.
+  SOPORTE
+  /// Asuntos del rol y del juego.
+  MODERADOR
+  /// Donaciones y lo que no puede ver nadie más.
+  ADMIN
+}
+
+enum Status {
+  PENDING
+  IN_REVIEW
+  ACCEPTED
+  REJECTED
+}
+
+/// Área en la que trabaja alguien del staff.
+///
+/// No da permisos: solo cuenta a qué se dedica, y por eso vive aparte de Role,
+/// que es lo que sí abre puertas. Se pueden llevar varias a la vez, igual que en
+/// Discord, de donde salen.
+enum StaffTag {
+  DEV
+  ILEGAL
+  LEGAL
+  COMERCIO
+  REDES
+  EVENTOS
+  REPORTES
+}
+
+model User {
+  id          String       @id @default(cuid())
+  discordId   String       @unique
+  username    String
+  avatar      String?
+  role        Role         @default(USER)
+  /// Puede jugar en la ciudad. Sale de una solicitud aceptada, pero se guarda
+  /// aparte porque también se concede a mano desde Discord, y porque media web
+  /// pregunta por ello en cada carga.
+  whitelisted Boolean      @default(false)
+  /// Quién le trajo, si entró por un enlace de invitación. Se pone solo al
+  /// crear la cuenta y no se vuelve a tocar: la atribución no cambia después.
+  referredById String?
+  referredBy   User?    @relation("invitado", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals    User[]   @relation("invitado")
+  teams       UserTeam[]
+  createdAt   DateTime     @default(now())
+  submissions Submission[] @relation("autor")
+  reviews     Submission[] @relation("revisor")
+  posts       Post[]
+  photos      Photo[]
+  notes       UserNote[]   @relation("sobre")
+  notesGiven  UserNote[]   @relation("autor")
+  threads     Thread[]
+  replies     Reply[]
+  badges      UserBadge[]  @relation("llevada")
+  notifications Notification[]
+  tickets       Ticket[]        @relation("ticketAutor")
+  ticketsInvitado TicketParticipant[] @relation("ticketInvitado")
+  ticketsMirando  TicketPresence[]    @relation("ticketMirando")
+  auditoria       AuditLog[]          @relation("auditor")
+  ticketsLlevados Ticket[]      @relation("ticketAsignado")
+  ticketMessages  TicketMessage[]
+}
+
+/// Equipo al que pertenece alguien del staff. Uno por fila: se llevan varios.
+model UserTeam {
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tag    StaffTag
+
+  @@id([userId, tag])
+  @@index([userId])
+}
+
+/// Aviso que le sale a un usuario en la campana de la cabecera.
+///
+/// Se guarda hecho —título, texto y destino ya resueltos— y no como una
+/// referencia al hilo o a la solicitud: un aviso cuenta lo que pasó cuando pasó,
+/// y no debe cambiar de texto porque después se edite o se borre el original.
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Qué lo provocó: RESPUESTA, SOLICITUD o INSIGNIA.
+  kind   String
+  title  String
+  body   String?
+  /// A dónde lleva al pulsarlo.
+  url    String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+
+  /// El primero sirve la cuenta de sin leer; el segundo, la lista.
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+/// Hilo del foro. El primer mensaje vive aquí y no como respuesta suelta.
+model Thread {
+  id       String  @id @default(cuid())
+  slug     String  @unique
+  /// Clave de una categoría de lib/foro/categorias.ts
+  category String
+  title    String
+  body     String
+  authorId String
+  author   User    @relation(fields: [authorId], references: [id])
+  pinned   Boolean @default(false)
+  locked   Boolean @default(false)
+  /// Se toca con cada respuesta: es el orden natural de un foro.
+  lastReplyAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  replies     Reply[]
+
+  @@index([category, pinned, lastReplyAt])
+}
+
+model Reply {
+  id        String   @id @default(cuid())
+  threadId  String
+  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([threadId, createdAt])
+}
+
+/// Insignia ganada por un jugador.
+///
+/// Aquí solo consta quién la tiene y desde cuándo: el nombre, el icono y —sobre
+/// todo— la condición viven en lib/insignias/catalogo.ts, porque una condición
+/// es código y no un dato. Nadie las concede a mano.
+model UserBadge {
+  userId    String
+  user      User     @relation("llevada", fields: [userId], references: [id], onDelete: Cascade)
+  /// Clave de una insignia de lib/insignias/catalogo.ts
+  slug      String
+  grantedAt DateTime @default(now())
+
+  @@id([userId, slug])
+  @@index([userId])
+}
+
+/// Lo que ha hecho el staff, apuntado.
+///
+/// Con cuatro escalones y roles que además se mueven solos desde Discord, hace
+/// falta poder responder a «¿quién cerró esto?» sin depender de la memoria de
+/// nadie. Se guarda el nombre de quien actuó y el de aquello sobre lo que actuó,
+/// no solo sus identificadores: un registro tiene que seguir leyéndose aunque el
+/// ticket o el usuario ya no existan.
+model AuditLog {
+  id       String @id @default(cuid())
+  /// Qué se hizo: una clave de lib/auditoria.ts
+  accion   String
+  actorId  String?
+  actor    User?   @relation("auditor", fields: [actorId], references: [id], onDelete: SetNull)
+  /// Cómo se llamaba quien lo hizo, congelado.
+  actorNombre String
+  /// Sobre qué se actuó, en texto legible.
+  objetivo String
+  /// A dónde ir a verlo, si sigue existiendo.
+  url      String?
+  /// El antes y el después, cuando los hay.
+  detalle  String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([accion, createdAt])
+}
+
+/// Nota interna del staff sobre un jugador. Nunca se le enseña a él.
+model UserNote {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("sobre", fields: [userId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("autor", fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Post {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  title       String
+  excerpt     String
+  coverImage  String?
+  contentMd   String
+  published   Boolean   @default(false)
+  publishedAt DateTime?
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([published, publishedAt])
+}
+
+model Submission {
+  id          String    @id @default(cuid())
+  type        String
+  formVersion Int
+  userId      String
+  user        User      @relation("autor", fields: [userId], references: [id])
+  answers     Json
+  status      Status    @default(PENDING)
+  reviewerId  String?
+  reviewer    User?     @relation("revisor", fields: [reviewerId], references: [id])
+  staffNote   String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([type, status])
+  @@index([userId, type, createdAt])
+}
+
+/// Imágenes de la ciudad que se enseñan en la portada.
+model Photo {
+  id        String   @id @default(cuid())
+  url       String
+  width     Int
+  height    Int
+  caption   String?
+  /// Menor primero: el staff decide el orden desde el panel.
+  position  Int      @default(0)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([position, createdAt])
+}
+
+/// Un formulario de postulación: cómo se admite y qué se pregunta.
+///
+/// Los tres primeros campos son la configuración de siempre. Los de abajo son el
+/// formulario en sí, editable desde el panel: mientras están a nulo manda el
+/// fichero de lib/forms, y en cuanto se guarda un cambio manda la base. Se hace
+/// así —y no volcando el fichero a la base de entrada— para que los de siempre
+/// sigan existiendo en una instalación nueva sin depender de que alguien los
+/// haya escrito antes, y para poder volver al original si un cambio sale mal.
+model FormConfig {
+  type         String  @id
+  open         Boolean @default(true)
+  cooldownDays Int     @default(7)
+  title        String?
+  summary      String?
+  /// Las preguntas, con la forma de Field[] (lib/forms/types.ts).
+  fields       Json?
+  /// Sube sola al cambiar las preguntas: las respuestas ya enviadas conservan
+  /// la suya, así que se puede saber a qué cuestionario contestaron.
+  version      Int?
+  /// Orden en las tarjetas. Los del código van a cero y se ordenan entre ellos
+  /// por el orden del registro; los creados desde el panel caen detrás.
+  position     Int     @default(0)
+}
+
+enum TicketStatus {
+  /// Recién abierto, sin que el staff lo haya tocado.
+  ABIERTO
+  /// Alguien lo lleva.
+  EN_CURSO
+  /// El staff ha contestado y espera respuesta del autor.
+  ESPERANDO
+  /// Terminado. Se puede reabrir contestando.
+  CERRADO
+}
+
+/// Conversación privada entre un jugador y el staff.
+///
+/// El `nivel` es lo que decide quién lo ve: solo el staff que llega a ese
+/// escalón, más su autor. Un ticket de donaciones nace en ADMIN y no lo abre
+/// nadie por debajo; uno de dudas nace en SOPORTE y puede subir si hace falta.
+model Ticket {
+  id       String @id @default(cuid())
+  /// Número corto y legible, el que se dice en voz alta.
+  numero   Int    @unique
+  /// Clave de una categoría de lib/tickets/categorias.ts
+  category String
+  subject  String
+  /// Respuestas al formulario de la categoría, tal como se enviaron.
+  answers  Json
+  status   TicketStatus @default(ABIERTO)
+  /// Escalón de staff que puede verlo y atenderlo.
+  nivel    Role
+
+  authorId String
+  author   User   @relation("ticketAutor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  /// Quien lo lleva ahora mismo. Se pone solo al responder.
+  assigneeId String?
+  assignee   User?   @relation("ticketAsignado", fields: [assigneeId], references: [id])
+
+  closedAt  DateTime?
+
+  /// Qué tal se le atendió, de 0 a 5. La pone su autor cuando se cierra.
+  ///
+  /// Vive en el ticket y no en una tabla aparte porque hay una por ticket y la
+  /// pone una sola persona: la de quien lo abrió. A quién valora se deduce de
+  /// `assigneeId`, que es quien lo llevaba.
+  valoracion     Int?
+  valoracionNota String?
+  valoradoAt     DateTime?
+  /// Otros jugadores metidos en la conversación por el autor o por el staff.
+  invitados TicketParticipant[]
+  presencias TicketPresence[]
+  createdAt DateTime  @default(now())
+  /// Se toca con cada mensaje: es el orden útil de la bandeja.
+  lastMessageAt DateTime @default(now())
+
+  messages TicketMessage[]
+
+  @@index([status, nivel, lastMessageAt])
+  @@index([authorId, lastMessageAt])
+}
+
+/// Jugador que no abrió el ticket pero está dentro de él.
+///
+/// Existe para lo que se cuenta entre varios —una escena con tres implicados—
+/// donde obligar a cada uno a abrir su propio ticket parte la conversación en
+/// tres y obliga al staff a contarlo todo tres veces.
+model TicketParticipant {
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation("ticketInvitado", fields: [userId], references: [id], onDelete: Cascade)
+  addedAt  DateTime @default(now())
+
+  @@id([ticketId, userId])
+  @@index([userId])
+}
+
+/// Última vez que alguien tuvo abierto un ticket.
+///
+/// Es lo que permite decir «está mirándolo ahora mismo» sin montar un canal en
+/// vivo: la propia pantalla del ticket avisa cada pocos segundos mientras esté
+/// abierta, y con la marca de tiempo se sabe quién sigue delante.
+model TicketPresence {
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation("ticketMirando", fields: [userId], references: [id], onDelete: Cascade)
+  seenAt   DateTime @default(now())
+
+  @@id([ticketId, userId])
+  @@index([ticketId, seenAt])
+}
+
+model TicketMessage {
+  id       String @id @default(cuid())
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+  body     String
+  /// Nota interna: la ve el staff, nunca el autor del ticket.
+  interno  Boolean @default(false)
+  /// Imágenes adjuntas, en el orden en que se subieron.
+  adjuntos TicketAttachment[]
+  createdAt DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+model TicketAttachment {
+  id        String        @id @default(cuid())
+  messageId String
+  message   TicketMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  url       String
+  width     Int
+  height    Int
+
+  @@index([messageId])
+}

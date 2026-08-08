@@ -1,0 +1,40 @@
+# Va en C:\caddy\Caddyfile del servidor Windows.
+#
+# Caddy corre en Windows y la web dentro de WSL. Se hablan por 127.0.0.1:3000:
+# WSL abre sus puertos en el localhost del propio Windows, así que no hace falta
+# tocar rutas ni averiguar la IP de la distro, que además cambia en cada arranque.
+
+{
+	# Dónde se guardan los certificados. Sin esto Caddy los mete en el perfil de
+	# quien lo ejecuta, y como servicio ese usuario es SYSTEM: los que consigas
+	# probándolo a mano no le sirven al servicio, y acaba pidiendo otros. Let's
+	# Encrypt no da infinitos por semana, así que conviene un sitio fijo.
+	storage file_system C:\caddy\data
+}
+
+novals.es {
+	reverse_proxy 127.0.0.1:3000 {
+		# El canal de eventos es un flujo que se queda abierto: si Caddy lo
+		# guarda en un buffer, los avisos llegan a ratos o no llegan.
+		flush_interval -1
+	}
+
+	# Una tanda de galería son diez fotos de diez megas.
+	request_body {
+		max_size 110MB
+	}
+
+	encode gzip
+
+	log {
+		output file C:\caddy\logs\novals.log
+		format console
+	}
+}
+
+# Quien llegue por www acaba en el dominio de verdad. Sin esto, la sesión abierta
+# en una de las dos direcciones no vale en la otra: para las cookies son sitios
+# distintos.
+www.novals.es {
+	redir https://novals.es{uri} permanent
+}

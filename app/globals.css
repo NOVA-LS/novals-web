@@ -1,0 +1,1569 @@
+@import "tailwindcss";
+@import "../tokens.css";
+
+/* Hallmark · genre: atmospheric · macrostructure: Bento Grid · theme: custom monocromo
+ * nav: N1b · footer: Ft5 · enrichment: none · accent: ink (marca monocroma)
+ */
+
+/* Solo las familias entran en el tema de Tailwind: los nombres de color de
+   tokens.css ya son --color-*, y remapearlos aquí crearía una autorreferencia.
+   El color se aplica con las clases de componente del final de este fichero. */
+@theme inline {
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-outlier);
+  --font-nova: var(--font-display);
+}
+
+html {
+  overflow-x: clip;
+}
+
+body {
+  overflow-x: clip;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-weight: 350;
+  font-size: var(--text-base);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 1.04;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+::selection {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  /* Nunca se anima: quien navega con teclado necesita el anillo al instante. */
+}
+
+/* Una sola entrada orquestada al cargar. El resto del contenido está y ya. */
+.reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: reveal var(--dur-long) var(--ease-out) forwards;
+  animation-delay: calc(var(--i, 0) * 55ms);
+}
+
+@keyframes reveal {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 150ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 150ms !important;
+  }
+
+  .reveal {
+    transform: none;
+  }
+}
+
+/* ---------- Ambiente ---------- */
+
+/* Una sola fuente de luz, muy tenue, detrás de la parte alta de la página.
+   Sin animación y sin color: la marca es monocroma. */
+.canvas::before {
+  content: "";
+  position: fixed;
+  inset: -20% -20% auto -20%;
+  height: 70vh;
+  background: radial-gradient(
+    55% 60% at 50% 0%,
+    color-mix(in oklch, var(--color-ink) 9%, transparent) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Grano finísimo para que las superficies grandes no queden planas. */
+.canvas::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.035;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ---------- Estructura ---------- */
+
+.shell {
+  width: 100%;
+  max-width: var(--page-max);
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+}
+
+.meta {
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-neutral);
+  font-variant-numeric: tabular-nums;
+}
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  line-height: 1.04;
+  letter-spacing: 0.005em;
+}
+
+/* Regla fina con la que se abren las secciones. */
+.section-head {
+  display: grid;
+  gap: var(--space-2xs);
+  border-top: var(--rule-hair) solid var(--color-rule);
+  padding-block-start: var(--space-md);
+}
+
+/* Cabecera con acción a la derecha: el botón queda arriba, a la altura del
+   título, en vez de caer debajo del texto.
+
+   Se centran entre sí. Ni por el borde de arriba ni por la línea base: el
+   titular es una condensada enorme y el enlace un texto pequeño, así que las
+   dos referencias dejaban el enlace visiblemente caído. */
+.section-head--fila {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+/* Pasos numerados del proceso de entrada: la numeración es real, no adorno. */
+.step {
+  display: grid;
+  gap: var(--space-xs);
+  align-content: start;
+}
+
+.step__n {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--color-rule-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Enlace de navegación con subrayado que crece, sin desplazar nada. */
+.nav-link {
+  position: relative;
+  white-space: nowrap;
+  padding-block: var(--space-2xs);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  transition: color var(--dur-micro) var(--ease-out);
+}
+
+.nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: var(--color-ink);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--dur-short) var(--ease-out);
+}
+
+.nav-link:hover,
+.nav-link[data-activo="true"] {
+  color: var(--color-ink);
+}
+
+.nav-link:hover::after,
+.nav-link[data-activo="true"]::after {
+  transform: scaleX(1);
+}
+
+/* ---------- Filtros del panel ---------- */
+
+/* Botón de filtro. Más ligero que un .btn porque hay una docena en pantalla y
+   compitiendo entre ellos no se ve cuál está puesto. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: 0.3rem 0.65rem 0.26rem;
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--color-muted);
+  transition:
+    color var(--dur-micro) var(--ease-out),
+    border-color var(--dur-micro) var(--ease-out);
+}
+
+.chip:hover {
+  color: var(--color-ink);
+  border-color: var(--color-rule-strong);
+}
+
+.chip[data-activo="true"] {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-paper);
+}
+
+.chip__n {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.65;
+}
+
+/* Extremo al que ya no se puede ir. Se deja a la vista, y no se quita, para que
+   la barra no cambie de forma al llegar a la primera o a la última página. */
+.chip[data-apagado="true"] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Barra de páginas. Los números se agrupan aparte para que en un móvil sean
+   ellos los que se parten, y no los extremos, que son lo que más se pulsa. */
+.paginacion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: var(--rule-hair) solid var(--color-rule);
+}
+
+.paginacion__numeros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Buscador en línea. El ancho va aquí y no en una utilidad porque `.input` trae
+   `width: 100%` desde este mismo fichero, que se carga después de Tailwind: una
+   clase de ancho suelta perdía y el botón acababa cayendo bajo el campo. */
+.buscador {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.buscador .input {
+  width: min(16rem, 100%);
+}
+
+/* Fila de tabla que entera lleva a un sitio: el enlace se estira por encima de
+   las celdas, así que se puede pinchar en cualquier punto sin duplicar enlaces
+   ni romper el orden del teclado. */
+.fila {
+  position: relative;
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+  transition: background-color var(--dur-micro) var(--ease-out);
+}
+
+.fila:hover {
+  background: var(--color-paper-2);
+}
+
+.fila__enlace::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+/* ---------- Pistas ---------- */
+
+.pista {
+  position: relative;
+  display: inline-flex;
+  border-radius: var(--radius-sm);
+}
+
+/* El anillo de foco sigue la forma de lo que se envuelve. */
+.pista--redonda {
+  border-radius: 50%;
+}
+
+/* Sale a la derecha y no encima: arriba se pegaba al borde del retrato y en la
+   ficha de perfil se le echaba encima al nombre. */
+.pista__globo {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + var(--space-sm));
+  z-index: 10;
+  padding: 0.35rem 0.6rem;
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper-3);
+  color: var(--color-muted);
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  translate: -0.25rem -50%;
+  transition:
+    opacity var(--dur-short) var(--ease-out),
+    translate var(--dur-short) var(--ease-out);
+}
+
+.pista:hover .pista__globo,
+.pista:focus-visible .pista__globo {
+  opacity: 1;
+  translate: 0 -50%;
+}
+
+/* Arriba y centrada: es lo que cabe cuando lo señalado va en una fila con más
+   cosas al lado. Aquí el texto sí se parte, porque son frases y no etiquetas. */
+.pista--arriba .pista__globo {
+  top: auto;
+  bottom: calc(100% + var(--space-2xs));
+  left: 50%;
+  /* Sin `max-content` el globo se encoge al ancho de lo que cuelga —una
+     insignia mide cuatro palabras— y el texto sale en columna estrecha: un
+     bloque absoluto se ajusta al hueco de su contenedor, no al de la página. */
+  width: max-content;
+  max-width: min(24rem, 80vw);
+  white-space: normal;
+  text-align: center;
+  line-height: 1.4;
+  translate: -50% 0.25rem;
+}
+
+.pista--arriba:hover .pista__globo,
+.pista--arriba:focus-visible .pista__globo {
+  translate: -50% 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pista__globo {
+    transition: none;
+    translate: 0 -50%;
+  }
+
+  .pista--arriba .pista__globo {
+    translate: -50% 0;
+  }
+}
+
+/* ---------- Menús desplegables ---------- */
+
+.menu {
+  position: relative;
+}
+
+.menu__boton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  list-style: none;
+  color: var(--color-muted);
+  transition: color var(--dur-micro) var(--ease-out);
+}
+
+/* Safari sigue pintando el triángulo del summary sin esto. */
+.menu__boton::-webkit-details-marker {
+  display: none;
+}
+
+.menu__boton:hover {
+  color: var(--color-ink);
+}
+
+.menu__flecha {
+  transition: rotate var(--dur-short) var(--ease-out);
+}
+
+.menu[open] .menu__flecha {
+  rotate: 180deg;
+}
+
+/* El icono de cerrar sustituye al de abrir en el mismo hueco. */
+.menu__icono--cerrar,
+.menu[open] .menu__icono {
+  display: none;
+}
+
+.menu[open] .menu__icono--cerrar {
+  display: block;
+}
+
+.menu__panel {
+  position: absolute;
+  top: calc(100% + var(--space-xs));
+  right: 0;
+  z-index: 10;
+  display: grid;
+  min-width: 12rem;
+  padding: var(--space-2xs);
+  border: var(--rule-hair) solid var(--color-rule-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-paper-2);
+  box-shadow: 0 12px 32px color-mix(in oklch, black 45%, transparent);
+}
+
+.menu__panel--izquierda {
+  right: auto;
+  left: 0;
+}
+
+.menu__nombre {
+  padding: var(--space-xs) var(--space-sm) var(--space-2xs);
+}
+
+.menu__opcion {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-micro) var(--ease-out),
+    color var(--dur-micro) var(--ease-out);
+}
+
+.menu__opcion:hover {
+  background: var(--color-paper-3);
+  color: var(--color-ink);
+}
+
+.menu__opcion--boton {
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* ---------- Botones: los ocho estados ---------- */
+
+.btn {
+  --btn-bg: transparent;
+  --btn-fg: var(--color-ink);
+  --btn-border: var(--color-rule-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  white-space: nowrap;
+  padding: 0.625rem 1.125rem;
+  border: var(--rule-hair) solid var(--btn-border);
+  border-radius: var(--radius-sm);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-micro) var(--ease-out),
+    border-color var(--dur-micro) var(--ease-out),
+    color var(--dur-micro) var(--ease-out),
+    transform var(--dur-micro) var(--ease-out);
+}
+
+.btn--primary {
+  --btn-bg: var(--color-ink);
+  --btn-fg: var(--color-paper);
+  --btn-border: var(--color-ink);
+  font-weight: 600;
+}
+
+.btn--ghost {
+  --btn-border: transparent;
+  color: var(--color-muted);
+}
+
+/* Único botón con color en toda la web: borra algo y no vuelve. */
+.btn--danger {
+  --btn-fg: var(--color-rejected);
+  --btn-border: var(--color-rejected);
+}
+
+.btn:hover:not(:disabled),
+.btn.is-hover {
+  transform: translateY(-1px);
+}
+
+.btn:not(.btn--primary):hover:not(:disabled),
+.btn:not(.btn--primary).is-hover {
+  --btn-bg: var(--color-paper-3);
+  --btn-border: var(--color-ink);
+}
+
+.btn--primary:hover:not(:disabled),
+.btn--primary.is-hover {
+  --btn-bg: var(--color-muted);
+  --btn-border: var(--color-muted);
+}
+
+.btn:active:not(:disabled),
+.btn.is-active {
+  transform: translateY(0);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn[data-state="loading"] {
+  cursor: progress;
+  color: var(--color-muted);
+}
+
+.btn[data-state="error"] {
+  --btn-border: var(--color-rejected);
+  color: var(--color-rejected);
+}
+
+.btn[data-state="success"] {
+  --btn-border: var(--color-accepted);
+  color: var(--color-accepted);
+}
+
+/* ---------- Superficies ---------- */
+
+.tile {
+  background: var(--color-paper-2);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  min-width: 0;
+}
+
+/* Texto escrito por un jugador: respeta sus saltos de línea, pero parte las
+   palabras kilométricas y los enlaces pegados, que si no se salen del cuadro.
+   `anywhere` además reduce el ancho mínimo del elemento, y sin eso un item de
+   grid o flex se niega a encogerse por debajo de su palabra más larga. */
+.respuesta {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* ---------- Portada ---------- */
+
+.hero {
+  position: relative;
+  display: grid;
+  align-content: center;
+  /* svh y no vh: en móvil la barra del navegador no debe recortar el contenido. */
+  min-height: 88svh;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Sin fotos subidas no tiene sentido reservar una pantalla entera de vacío. */
+.hero--sobrio {
+  min-height: auto;
+}
+
+.hero__fondo {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: var(--color-paper);
+}
+
+.hero__foto {
+  object-fit: cover;
+  opacity: 0;
+  /* Un fundido largo: la foto acompaña, no llama la atención. */
+  transition: opacity 1.4s var(--ease-out);
+}
+
+.hero__foto[data-visible] {
+  opacity: 1;
+}
+
+/* Velo que garantiza el contraste del texto pase la foto que pase. */
+.hero__fondo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in oklch, var(--color-paper) 70%, transparent) 0%,
+      color-mix(in oklch, var(--color-paper) 45%, transparent) 40%,
+      var(--color-paper) 100%
+    );
+}
+
+/* Poza de sombra bajo el bloque de la portada: oscurece donde de verdad hay
+   texto y se desvanece antes de tocar los bordes, así la foto se sigue viendo
+   entera. Sin fotos no se nota: es el color del fondo mezclado consigo mismo. */
+.hero__contenido {
+  position: relative;
+}
+
+.hero__contenido::before {
+  content: "";
+  position: absolute;
+  inset: -8% -6%;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    62% 58% at 50% 50%,
+    color-mix(in oklch, var(--color-paper) 78%, transparent) 0%,
+    color-mix(in oklch, var(--color-paper) 52%, transparent) 52%,
+    transparent 78%
+  );
+}
+
+/* El logo es casi blanco y se pierde en un cielo claro; el titular, igual. */
+.hero__logo {
+  filter: drop-shadow(
+    0 0.15rem 1.25rem color-mix(in oklch, var(--color-paper) 82%, transparent)
+  );
+}
+
+.hero__titular {
+  text-shadow: 0 0.08em 0.6em color-mix(in oklch, var(--color-paper) 70%, transparent);
+}
+
+.hero__puntos {
+  position: absolute;
+  bottom: var(--space-lg);
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.hero__punto {
+  width: 1.75rem;
+  height: 2px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: color-mix(in oklch, var(--color-ink) 30%, transparent);
+  transition: background-color var(--dur-short) var(--ease-out);
+}
+
+.hero__punto[data-activo],
+.hero__punto:hover {
+  background: var(--color-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__foto {
+    transition: none;
+  }
+}
+
+/* ---------- Perfil ---------- */
+
+.avatar {
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  border: var(--rule-hair) solid var(--color-rule-strong);
+  background: var(--color-paper-3);
+}
+
+/* Distintivo junto al nombre. Sin color: lo distingue el icono, no el tono. */
+.insignia {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  /* Mismo ajuste que .badge: mayúsculas sin descendentes. */
+  line-height: 1;
+  padding: 0.3rem 0.45rem 0.22rem;
+  border: var(--rule-hair) solid var(--color-rule-strong);
+  border-radius: 999px;
+  background: var(--color-paper-3);
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.avatar--inicial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--color-muted);
+}
+
+/* Ficha de perfil: retrato, señas y cifras. En estrecho las cifras bajan a su
+   propia fila; a partir de tableta se van a la derecha, en línea con el nombre. */
+.perfil {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-lg);
+}
+
+.perfil__lado {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-md);
+  justify-items: start;
+}
+
+@media (min-width: 56rem) {
+  .perfil {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .perfil__lado {
+    grid-column: auto;
+    justify-items: end;
+  }
+}
+
+/* Cifras seguidas, separadas por una línea fina y no por cajas. */
+.cifras {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.cifras > div {
+  display: grid;
+  gap: var(--space-2xs);
+  padding-inline: var(--space-md);
+  border-inline-start: var(--rule-hair) solid var(--color-rule);
+}
+
+/* Los extremos van a ras: si la última columna guarda su hueco interior, lo que
+   haya debajo —un botón, otra fila— parece salirse por la derecha. */
+.cifras > div:first-child {
+  padding-inline-start: 0;
+  border-inline-start: 0;
+}
+
+.cifras > div:last-child {
+  padding-inline-end: 0;
+}
+
+/* Cuenta de cosas pendientes junto a un enlace del panel. */
+.contador {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding-inline: 0.25rem;
+  border-radius: 999px;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-family: var(--font-outlier);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Estados de una solicitud ---------- */
+
+/* El estado se lee por el relleno, no solo por un filo de color: el borde de
+   1 px sobre fondo oscuro se perdía. El icono acompaña siempre al color, así
+   que el estado no depende de distinguir el verde del rojo. */
+.badge {
+  --tono: var(--color-neutral);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  /* Todo va en mayúsculas: no hay nada bajo la línea base, así que el hueco de
+     los descendentes se descuenta abajo o la pastilla parece caída. */
+  line-height: 1;
+  padding: 0.34rem 0.55rem 0.26rem;
+  border: var(--rule-hair) solid color-mix(in oklch, var(--tono) 40%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--tono) 14%, var(--color-paper));
+  color: var(--tono);
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.badge--pending {
+  --tono: var(--color-pending);
+}
+.badge--review {
+  --tono: var(--color-review);
+}
+.badge--accepted {
+  --tono: var(--color-accepted);
+}
+.badge--rejected {
+  --tono: var(--color-rejected);
+}
+.badge--dev {
+  --tono: var(--color-dev);
+}
+
+/* Dentro de un botón el estado ya va enmarcado: sobra el relleno y el filo. */
+.badge--desnudo {
+  border: 0;
+  background: none;
+  padding-inline: 0;
+}
+
+/* El neutro no es un estado: no debe cantar tanto como los otros cuatro. */
+.badge--neutral {
+  --tono: var(--color-rule-strong);
+  color: var(--color-muted);
+}
+
+/* Ficha de una solicitud: el filo de la izquierda repite el color del estado,
+   así la lista se lee de un vistazo sin tener que leer cada insignia. */
+.solicitud {
+  --tono: var(--color-rule-strong);
+  border-inline-start: 3px solid var(--tono);
+}
+
+.solicitud[data-estado="PENDING"] {
+  --tono: var(--color-pending);
+}
+.solicitud[data-estado="IN_REVIEW"] {
+  --tono: var(--color-review);
+}
+.solicitud[data-estado="ACCEPTED"] {
+  --tono: var(--color-accepted);
+}
+.solicitud[data-estado="REJECTED"] {
+  --tono: var(--color-rejected);
+}
+
+/* Barra de espera cumplida. Hereda --tono, así que dentro de una ficha
+   rechazada se pinta del color del estado sin decírselo. */
+.progreso {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--color-rule);
+  overflow: hidden;
+}
+
+.progreso::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: var(--avance, 0%);
+  background: var(--tono, var(--color-ink));
+  transition: width 1s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progreso::after {
+    transition: none;
+  }
+}
+
+/* Tarjeta a la que hoy no se puede entrar. El contenido se sigue viendo detrás
+   —para saber de qué trámite hablamos— pero atenuado y bajo un candado. No se
+   tiñe de rojo: no es un error de nadie, es que todavía no toca. */
+.bloqueada {
+  position: relative;
+}
+
+.bloqueada__velo {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-lg);
+  border-radius: inherit;
+  text-align: center;
+  background: color-mix(in oklch, var(--color-paper) 76%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+/* Fechas de una solicitud: etiqueta arriba en pequeño y valor legible debajo.
+   En una sola línea seguida se leían como ruido. */
+.fechas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+}
+
+.fechas > div {
+  display: grid;
+  gap: var(--space-2xs);
+}
+
+/* Lo que escribió el staff al resolver: bloque aparte, con su etiqueta. */
+.nota-staff {
+  display: grid;
+  gap: var(--space-2xs);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  border-inline-start: 2px solid color-mix(in oklch, var(--tono) 55%, transparent);
+  background: var(--color-paper-3);
+}
+
+/* ---------- Formularios ---------- */
+
+.field {
+  display: grid;
+  gap: var(--space-2xs);
+}
+
+.field__label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.field__help {
+  font-size: var(--text-sm);
+  color: var(--color-neutral);
+}
+
+.field__error {
+  font-size: var(--text-sm);
+  color: var(--color-rejected);
+}
+
+.input {
+  width: 100%;
+  background: var(--color-paper);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  padding: 0.625rem 0.75rem;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  transition: border-color var(--dur-micro) var(--ease-out);
+}
+
+/* Campo que no debe ocupar la fila entera. Va después de `.input` a propósito:
+   con la misma especificidad, manda el que se declara el último. */
+.input--corto {
+  width: min(10rem, 100%);
+}
+
+.input::placeholder {
+  color: var(--color-neutral);
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--color-rule-strong);
+}
+
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--color-rejected);
+}
+
+textarea.input {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+select.input {
+  appearance: none;
+  background-image: linear-gradient(
+      45deg,
+      transparent 50%,
+      var(--color-neutral) 50%
+    ),
+    linear-gradient(135deg, var(--color-neutral) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 55%,
+    calc(100% - 13px) 55%;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 2.25rem;
+}
+
+/* ---------- Texto largo (noticias en Markdown) ---------- */
+
+.prose {
+  max-width: 68ch;
+  color: var(--color-muted);
+  /* Un enlace pegado sin espacios, o un «aaaaa…» de mil letras, no tiene dónde
+     partirse y empuja la caja entera fuera de la pantalla. Con esto se parte
+     donde haga falta, y `min-width` evita que la columna del grid crezca con él
+     en vez de contenerlo. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* Un bloque de código no se parte —perdería sentido—, así que rueda él solo. */
+.prose pre {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.prose h2,
+.prose h3 {
+  color: var(--color-ink);
+  margin-block: var(--space-xl) var(--space-sm);
+}
+
+.prose h2 {
+  font-size: var(--text-xl);
+}
+
+.prose h3 {
+  font-size: var(--text-lg);
+}
+
+.prose p,
+.prose ul,
+.prose ol {
+  margin-block: var(--space-md);
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.25rem;
+}
+
+.prose ul {
+  list-style: disc;
+}
+
+.prose ol {
+  list-style: decimal;
+}
+
+.prose a {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.prose a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.prose blockquote {
+  border-left: 2px solid var(--color-rule-strong);
+  padding-left: var(--space-md);
+  color: var(--color-neutral);
+}
+
+.prose code {
+  font-family: var(--font-outlier);
+  font-size: 0.9em;
+  background: var(--color-paper-3);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- Carga ---------- */
+
+/* Silueta de lo que va a llegar. El brillo va de derecha a izquierda para que
+   se lea como "viene de camino" y no como una barra de progreso. */
+.esqueleto {
+  display: block;
+  min-height: 0.6rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--color-paper-2) 0%,
+    var(--color-paper-3) 50%,
+    var(--color-paper-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: esqueleto-brillo 1.4s var(--ease-out) infinite;
+}
+
+@keyframes esqueleto-brillo {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .esqueleto {
+    animation: none;
+    background: var(--color-paper-2);
+  }
+}
+
+/* ---------- Avisos ---------- */
+
+/* El desplegable de la campana es más ancho que el de la cuenta: aquí hay
+   frases, no etiquetas de una palabra. */
+.avisos {
+  min-width: min(22rem, calc(100vw - 2 * var(--page-gutter)));
+}
+
+.avisos__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.avisos__marcar {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-muted);
+  transition: color var(--dur-micro) var(--ease-out);
+}
+
+.avisos__marcar:hover {
+  color: var(--color-ink);
+}
+
+.avisos__vacio {
+  padding: var(--space-xs) var(--space-sm) var(--space-sm);
+}
+
+/* Si hay muchos, la lista rueda dentro del desplegable en vez de crecer hasta
+   salirse de la pantalla. */
+.avisos__lista {
+  display: grid;
+  max-height: min(26rem, 60vh);
+  overflow-y: auto;
+  border-block: var(--rule-hair) solid var(--color-rule);
+}
+
+.aviso {
+  display: flex;
+  align-items: start;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-micro) var(--ease-out);
+}
+
+.aviso:hover {
+  background: var(--color-paper-3);
+}
+
+.aviso__icono {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  color: var(--color-neutral);
+}
+
+.aviso__texto {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.aviso__titulo {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+/* Sin leer: texto en tinta plena y una barra al filo. El peso de la letra por sí
+   solo se pierde entre dos avisos seguidos; la barra se ve de un vistazo. */
+.aviso[data-nuevo="true"] .aviso__titulo {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.aviso[data-nuevo="true"] {
+  box-shadow: inset 2px 0 0 var(--color-ink);
+}
+
+.aviso__cuerpo {
+  font-size: var(--text-sm);
+  color: var(--color-neutral);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* Aviso sin leer en el historial: misma barra al filo que en la campana. */
+.tile[data-nuevo="true"] {
+  box-shadow: inset 2px 0 0 var(--color-ink);
+}
+
+/* ---------- Tickets ---------- */
+
+/* Selector de archivos en una fila con más cosas: a ancho completo empujaría
+   el botón de enviar a la línea siguiente. */
+.input--archivo {
+  width: auto;
+  max-width: 100%;
+  padding: 0.4rem;
+  font-size: var(--text-sm);
+}
+
+/* Nota interna. El jugador no la ve, así que quien la escribe necesita notar de
+   un vistazo que ese mensaje no sale de casa. */
+.tile[data-interno] {
+  border-style: dashed;
+  background: color-mix(in oklch, var(--color-pending) 6%, var(--color-paper-2));
+}
+
+/* Datos del formulario dentro del primer mensaje. Van encerrados entre dos
+   reglas finas: se leen como una ficha, pero sin salirse del mensaje. */
+.datos-ticket {
+  display: grid;
+  gap: var(--space-xs);
+  padding-block: var(--space-sm);
+  border-block: var(--rule-hair) solid var(--color-rule);
+}
+
+@media (min-width: 40rem) {
+  .datos-ticket {
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: var(--space-sm) var(--space-md);
+  }
+}
+
+.datos-ticket > div {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+/* Insignia que aún no se ha ganado: se enseña para saber que existe, pero
+   apagada, que no se confunda con las que ya lleva puestas. */
+.insignia--pendiente {
+  opacity: 0.45;
+}
+
+.tile[data-ganada="true"] {
+  border-color: var(--color-rule-strong);
+}
+
+/* Salto entre la web y el panel, al lado del logo. Ni botón ni enlace de menú:
+   es un atajo que solo ve el staff y no debe competir con la marca. */
+.salto {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: 0.35rem 0.6rem;
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--color-muted);
+  transition:
+    color var(--dur-micro) var(--ease-out),
+    border-color var(--dur-micro) var(--ease-out);
+}
+
+.salto:hover {
+  color: var(--color-ink);
+  border-color: var(--color-rule-strong);
+}
+
+/* La cuenta de pendientes se monta sobre el borde: dentro alargaría el atajo
+   cada vez que entra una solicitud. */
+.salto .contador {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.4rem;
+}
+
+/* ---------- Portada del foro ---------- */
+
+/* Fila de categoría: icono, de qué va, y a la derecha lo último que se movió
+   ahí. En móvil el último hilo pasa debajo, en su propia línea. */
+.categoria {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.categoria__icono {
+  grid-row: span 2;
+}
+
+.categoria__ultimo {
+  display: grid;
+  gap: var(--space-2xs);
+  grid-column: 2;
+  min-width: 0;
+  padding-top: var(--space-sm);
+  border-top: var(--rule-hair) solid var(--color-rule);
+}
+
+@media (min-width: 48rem) {
+  .categoria {
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 18rem);
+  }
+
+  .categoria__icono {
+    grid-row: auto;
+  }
+
+  /* A partir de aquí cabe al lado, y entonces la línea de arriba sobra: lo que
+     separa las dos cosas es el hueco entre columnas. */
+  .categoria__ultimo {
+    grid-column: 3;
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
+/* La burbuja de un mensaje es un grid: sin esto, un hijo con texto larguísimo
+   fija el ancho de la pista y se lleva la caja por delante. */
+.tile > .prose,
+.tile > * {
+  min-width: 0;
+}
+
+/* Pastilla en línea con un nombre: menos relleno y letra más pequeña, para que
+   acompañe al nombre en vez de competir con él. */
+.badge--menudo {
+  gap: 0.22rem;
+  padding: 0.16rem 0.4rem 0.12rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.05em;
+}
+
+/* Punto de «está aquí ahora». Late despacio para que se note vivo sin llamar la
+   atención cada segundo; quieto para quien pide menos movimiento. */
+.mirando {
+  display: inline-block;
+  /* Un pelo de aire de más antes del nombre: pegado parecía parte de la letra. */
+  margin-inline-end: 0.15rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--color-accepted);
+  animation: latido 2.4s var(--ease-out) infinite;
+}
+
+@keyframes latido {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mirando {
+    animation: none;
+  }
+}
+
+/* Rótulo de un grupo de gente dentro del ticket, con su regla al lado para que
+   se lea como una división y no como una línea más de la lista. */
+.grupo-gente {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.grupo-gente::after {
+  content: "";
+  flex: 1;
+  height: var(--rule-hair);
+  background: var(--color-rule);
+}
+
+/* Quién lleva el ticket. Va en tinta plena y con su retrato: es la primera
+   pregunta del staff al abrirlo, y en gris pequeño no se leía. */
+.dueno {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper-3);
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+}
+
+/* Sin dueño no es un dato neutro: es trabajo que nadie ha cogido. */
+.dueno--libre {
+  background: color-mix(in oklch, var(--color-pending) 12%, var(--color-paper-2));
+  color: var(--color-pending);
+}
+
+/* Casillas de equipo en la tabla de usuarios: en dos columnas, que son siete y
+   en una sola fila estirarían la tabla a lo ancho. */
+.equipos {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 0.2rem var(--space-sm);
+}
+
+.equipos__opcion {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.equipos__opcion:hover {
+  color: var(--color-ink);
+}
+
+/* Datos sueltos de una ficha: nombre pequeño arriba, valor legible debajo, y una
+   línea fina separando cada uno del siguiente. Puestos todos seguidos en gris
+   no se distinguía dónde acababa uno y empezaba otro. */
+.fichas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) 0;
+}
+
+.fichas > div {
+  display: grid;
+  gap: 0.1rem;
+  padding-inline: var(--space-md);
+  border-inline-start: var(--rule-hair) solid var(--color-rule);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+/* El primero va a ras del margen: si guardara su hueco, la ficha entera
+   parecería descolgada del título que tiene encima. */
+.fichas > div:first-child {
+  padding-inline-start: 0;
+  border-inline-start: 0;
+}
+
+/* Portada de una noticia. Se recorta por altura además de por proporción: en una
+   pantalla ancha, un 16:9 a todo lo ancho empuja el titular fuera de la vista y
+   hay que bajar para saber de qué va la noticia. */
+.portada-noticia {
+  width: 100%;
+  max-height: 22rem;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+}
+
+/* Cuerpo de una noticia. Aquí la medida de lectura la pone el propio artículo,
+   que ya viene acotado: si además `.prose` recortara a 68ch, el texto quedaría
+   más estrecho que la portada que tiene encima. */
+.prose--articulo {
+  max-width: none;
+}
+
+/* La campana, con su cuenta de sin leer en la esquina de arriba a la derecha. */
+.campana {
+  position: relative;
+  display: inline-flex;
+}
+
+.campana .contador {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.5rem;
+  /* Algo más pequeña que suelta: aquí va encima del icono, no a su lado. */
+  min-width: 1.05rem;
+  height: 1.05rem;
+  font-size: 0.625rem;
+}
+
+/* Valoración de un ticket: del 0 al 5. Botones grandes y no estrellas, porque
+   un cero con estrellas no se distingue de «no he votado». */
+.puntuacion {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.puntuacion__boton {
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  font-family: var(--font-outlier);
+  font-size: var(--text-md);
+  line-height: 1;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition:
+    color var(--dur-micro) var(--ease-out),
+    border-color var(--dur-micro) var(--ease-out),
+    background var(--dur-micro) var(--ease-out);
+}
+
+.puntuacion__boton:hover:not(:disabled) {
+  color: var(--color-ink);
+  border-color: var(--color-rule-strong);
+}
+
+.puntuacion__boton[aria-pressed="true"] {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-paper);
+}
+
+.puntuacion__boton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
