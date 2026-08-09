@@ -19,7 +19,8 @@ export async function GET(
   { params }: { params: Promise<{ codigo: string }> },
 ) {
   const { codigo } = await params;
-  const destino = new URL("/", _peticion.url);
+  const baseUrl = (process.env.AUTH_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  const destino = new URL("/", baseUrl);
 
   const existe = await db.user.findUnique({
     where: { id: codigo },
