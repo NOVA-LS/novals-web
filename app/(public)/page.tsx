@@ -36,11 +36,9 @@ export default async function HomePage() {
             sizes="(min-width: 640px) 360px, 240px"
             className="hero__logo h-20 w-auto sm:h-28"
           />
-          {/* Un escalón por debajo del tamaño de portada: aquí el titular
-              acompaña al logo, no compite con él. */}
-          <h1 className="hero__titular display max-w-[14ch] text-(length:--text-2xl) sm:text-(length:--text-display-s)">
-            Rol serio en Los Santos
-          </h1>
+          {/* Solo el logo: el titular se quita de la vista, pero la página
+              sigue teniendo su h1 para quien usa lector de pantalla. */}
+          <h1 className="sr-only">NOVA Los Santos</h1>
           <div className="flex flex-wrap justify-center gap-[var(--space-xs)]">
             <EnlaceBoton href="/formularios" variante="primary">
               Acceder

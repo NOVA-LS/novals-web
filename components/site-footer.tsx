@@ -16,15 +16,17 @@ export function SiteFooter() {
           {/* Es el mismo fichero que el logo de la cabecera, así que ya está en
               caché: cargarlo con prisa no cuesta nada y evita que Next lo
               confunda con el LCP, que siempre es el logo de arriba. */}
-          <Image
-            src="/brand/logo_blanco_tight.webp"
-            alt="NOVA Los Santos"
-            width={1966}
-            height={787}
-            loading="eager"
-            sizes="72px"
-            className="h-6 w-auto opacity-70"
-          />
+          <Link href="/" aria-label="NOVA Los Santos · inicio">
+            <Image
+              src="/brand/logo_blanco_tight.webp"
+              alt="NOVA Los Santos"
+              width={1966}
+              height={787}
+              loading="eager"
+              sizes="72px"
+              className="h-6 w-auto opacity-70"
+            />
+          </Link>
 
           <div className="flex flex-wrap justify-center gap-[var(--space-lg)] sm:justify-self-end">
             <Link href="/noticias" className="nav-link">

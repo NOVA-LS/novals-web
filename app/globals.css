@@ -120,7 +120,8 @@ h3 {
 }
 
 .meta {
-  font-family: var(--font-outlier);
+  font-family: var(--font-body);
+  font-weight: 500;
   font-size: var(--text-xs);
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -403,6 +404,20 @@ h3 {
 
 .menu__boton:hover {
   color: var(--color-ink);
+}
+
+/* Botón que es solo un icono (campana, atajos de cabecera): alto y ancho
+   fijos, para que un <summary> y un <a> midan exactamente lo mismo. Sin esto
+   cada elemento calcula su caja a su manera y quedan a distinta altura.
+
+   1.75rem porque es el tamaño del avatar de al lado (Avatar size={28}): con
+   el mismo diámetro, el hueco alrededor del icono se parece al que deja la
+   foto y los tres huecos de la fila quedan a la misma distancia. */
+.menu__boton--icono {
+  height: 1.75rem;
+  width: 1.75rem;
+  justify-content: center;
+  padding: 0;
 }
 
 .menu__flecha {
@@ -987,6 +1002,36 @@ h3 {
   width: min(10rem, 100%);
 }
 
+/* Fecha u hora: "10 rem" de un número se queda corto para "dd/mm/aaaa --:--",
+   y el icono del calendario acaba montado encima de la hora. */
+.input--fecha {
+  width: min(14rem, 100%);
+}
+
+/* Los controles de fecha son del sistema operativo, no nuestros: por defecto
+   los pinta en claro aunque el resto de la web sea oscura, así que el icono
+   del calendario se veía negro sobre negro. Esto le dice al navegador que
+   pinte icono y desplegable a juego con la paleta oscura de la web. */
+.input[type="date"],
+.input[type="time"],
+.input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
+.input[type="date"]::-webkit-calendar-picker-indicator,
+.input[type="time"]::-webkit-calendar-picker-indicator,
+.input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity var(--dur-micro) var(--ease-out);
+}
+
+.input[type="date"]:hover::-webkit-calendar-picker-indicator,
+.input[type="time"]:hover::-webkit-calendar-picker-indicator,
+.input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator {
+  opacity: 1;
+}
+
 .input::placeholder {
   color: var(--color-neutral);
 }
@@ -1522,6 +1567,22 @@ select.input {
   top: -0.4rem;
   right: -0.5rem;
   /* Algo más pequeña que suelta: aquí va encima del icono, no a su lado. */
+  min-width: 1.05rem;
+  height: 1.05rem;
+  font-size: 0.625rem;
+}
+
+/* Mismo tratamiento que la campana: un icono suelto con su aviso en la
+   esquina, para el atajo de staff en la cabecera. */
+.icono-atajo {
+  position: relative;
+  display: inline-flex;
+}
+
+.icono-atajo .contador {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.5rem;
   min-width: 1.05rem;
   height: 1.05rem;
   font-size: 0.625rem;

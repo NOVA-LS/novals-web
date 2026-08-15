@@ -67,7 +67,7 @@ export function Campana({
       <TituloAvisos sinLeer={sinLeer} />
 
       <summary
-        className="menu__boton"
+        className="menu__boton menu__boton--icono"
         aria-label={sinLeer > 0 ? `Avisos · ${sinLeer} sin leer` : "Avisos"}
       >
         {/* El número se monta sobre la campana, en su esquina: al lado

@@ -25,38 +25,40 @@ export async function SiteHeader() {
   return (
     <header className="sticky top-0 z-[500] border-b border-[var(--color-rule)] bg-[color-mix(in_oklch,var(--color-paper)_82%,transparent)] backdrop-blur-md">
       <div className="shell flex h-16 items-center justify-between gap-[var(--space-sm)]">
-        <div className="flex min-w-0 items-center gap-[var(--space-sm)]">
-          <Link href="/" aria-label="NOVA Los Santos · inicio" className="shrink-0">
-            <Image
-              src="/brand/logo_blanco_tight.webp"
-              alt="NOVA Los Santos"
-              width={1966}
-              height={787}
-              priority
-              sizes="104px"
-              className="h-8 w-auto sm:h-9"
-            />
-          </Link>
+        <Link href="/" aria-label="NOVA Los Santos · inicio" className="shrink-0">
+          <Image
+            src="/brand/logo_blanco_tight.webp"
+            alt="NOVA Los Santos"
+            width={1966}
+            height={787}
+            priority
+            sizes="104px"
+            className="h-8 w-auto sm:h-9"
+          />
+        </Link>
 
-          {/* El salto al panel, junto a la marca y no escondido en el menú: el
-              staff lo usa muchas veces al día. Nadie más lo ve. Con un poco de
-              aire de más para que no se lea como parte del logo. */}
+        <div className="flex shrink-0 items-center gap-[var(--space-sm)]">
+          {/* El salto al panel, junto a la campana y no junto a la marca: el
+              staff lo usa muchas veces al día, pero es un atajo de trabajo, no
+              parte de la identidad. Solo el icono: con texto no cabía junto al
+              resto de la cabecera. */}
           {staff ? (
             <Link
               href="/panel"
-              className="salto ms-[var(--space-2xs)]"
-              aria-label="Ir a la zona de staff"
+              className="menu__boton menu__boton--icono"
+              aria-label={
+                pendientes > 0
+                  ? `Ir a la zona de staff · ${pendientes} pendientes`
+                  : "Ir a la zona de staff"
+              }
             >
-              <Wrench size={17} aria-hidden />
-              <span className="hidden sm:inline">Staff</span>
-              {pendientes > 0 ? (
-                <span className="contador">{pendientes}</span>
-              ) : null}
+              <span className="icono-atajo">
+                <Wrench size={18} aria-hidden />
+                {pendientes > 0 ? <span className="contador">{pendientes}</span> : null}
+              </span>
             </Link>
           ) : null}
-        </div>
 
-        <div className="flex shrink-0 items-center gap-[var(--space-sm)]">
           {user && campana ? (
             <Campana avisos={campana.avisos} sinLeer={campana.sinLeer} />
           ) : null}

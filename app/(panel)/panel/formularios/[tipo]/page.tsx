@@ -3,15 +3,16 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
-import { FORMS } from "@/lib/forms";
+import { FORMS, esPregunta } from "@/lib/forms";
 import { traerForm } from "@/lib/forms/registro";
-import { cambiarCooldown, cambiarEstadoFormulario } from "@/lib/actions/admin";
+import { cambiarCooldown, cambiarEstadoFormulario, cambiarVentana } from "@/lib/actions/admin";
 import { Badge } from "@/components/ui/badge";
 import { Boton, EnlaceBoton } from "@/components/ui/button";
 import { EditorFormulario } from "@/components/panel/editor-formulario";
 import {
   BotonBorrar,
   BotonRestaurar,
+  DuplicarFormulario,
 } from "@/components/panel/acciones-formulario";
 
 export const dynamic = "force-dynamic";
@@ -40,13 +41,21 @@ export default async function EditarFormularioPage({
   const [config, recibidas] = await Promise.all([
     db.formConfig.findUnique({
       where: { type: tipo },
-      select: { open: true, cooldownDays: true, fields: true },
+      select: {
+        open: true,
+        cooldownDays: true,
+        fields: true,
+        openFrom: true,
+        openUntil: true,
+      },
     }),
     db.submission.count({ where: { type: tipo } }),
   ]);
 
   const abierto = config?.open !== false;
   const cooldown = config?.cooldownDays ?? 7;
+  const desde = config?.openFrom ? config.openFrom.toISOString().slice(0, 16) : "";
+  const hasta = config?.openUntil ? config.openUntil.toISOString().slice(0, 16) : "";
   const deFabrica = Boolean(FORMS[tipo]);
   // Solo tiene sentido volver al original si alguien lo cambió alguna vez.
   const editado = config?.fields != null;
@@ -60,78 +69,116 @@ export default async function EditarFormularioPage({
         ← Formularios
       </Link>
 
-      <header className="grid gap-[var(--space-sm)]">
-        <div className="flex flex-wrap items-center gap-[var(--space-sm)]">
-          <h1 className="display text-(length:--text-xl)">{form.title}</h1>
-          <Badge tono={abierto ? "accepted" : "rejected"}>
-            {abierto ? "Abierta" : "Cerrada"}
-          </Badge>
+      <header className="flex flex-wrap items-start justify-between gap-[var(--space-md)]">
+        <div className="grid gap-[var(--space-sm)]">
+          <div className="flex flex-wrap items-center gap-[var(--space-sm)]">
+            <h1 className="display text-(length:--text-xl)">{form.title}</h1>
+            <Badge tono={abierto ? "accepted" : "rejected"}>
+              {abierto ? "Abierta" : "Cerrada"}
+            </Badge>
+          </div>
+
+          <dl className="fichas">
+            <div>
+              <dt className="meta">Clave</dt>
+              <dd>{form.type}</dd>
+            </div>
+            <div>
+              <dt className="meta">Versión</dt>
+              <dd>{form.version}</dd>
+            </div>
+            <div>
+              <dt className="meta">Preguntas</dt>
+              <dd>{form.fields.filter(esPregunta).length}</dd>
+            </div>
+            <div>
+              <dt className="meta">Recibidas</dt>
+              <dd>{recibidas}</dd>
+            </div>
+          </dl>
         </div>
 
-        <dl className="fichas">
-          <div>
-            <dt className="meta">Clave</dt>
-            <dd>{form.type}</dd>
+        <div className="grid gap-[var(--space-xs)] justify-items-end">
+          <div className="flex flex-wrap items-center gap-[var(--space-xs)]">
+            {/* Lleva a una copia del formulario, con lo que haya en el editor
+                aunque no esté guardado. La de verdad no vale para esto: si está
+                cerrada, o hay una solicitud en revisión, no enseña las preguntas. */}
+            <EnlaceBoton href={`/panel/formularios/${tipo}/vista`}>
+              Cómo se verá
+            </EnlaceBoton>
+
+            <form
+              action={async () => {
+                "use server";
+                await cambiarEstadoFormulario(tipo, !abierto);
+              }}
+            >
+              <Boton type="submit" variante={abierto ? "outline" : "primary"}>
+                {abierto ? "Cerrar postulaciones" : "Abrir postulaciones"}
+              </Boton>
+            </form>
           </div>
-          <div>
-            <dt className="meta">Versión</dt>
-            <dd>{form.version}</dd>
-          </div>
-          <div>
-            <dt className="meta">Preguntas</dt>
-            <dd>{form.fields.length}</dd>
-          </div>
-          <div>
-            <dt className="meta">Recibidas</dt>
-            <dd>{recibidas}</dd>
-          </div>
-        </dl>
+
+          <DuplicarFormulario tipo={tipo} tituloOriginal={form.title} />
+        </div>
       </header>
 
       {/* Lo que decide si se admite: se ve antes que las preguntas porque es lo
           que la gente nota desde fuera. */}
-      <section className="tile flex flex-wrap items-end justify-between gap-[var(--space-md)]">
-        <form
-          action={async (datos: FormData) => {
-            "use server";
-            await cambiarCooldown(tipo, Number(datos.get("dias") ?? 7));
-          }}
-          className="grid gap-[var(--space-2xs)]"
-        >
-          <label className="meta" htmlFor="cooldown">
-            Espera tras un rechazo (días)
-          </label>
-          <div className="flex items-center gap-[var(--space-xs)]">
-            <input
-              id="cooldown"
-              name="dias"
-              type="number"
-              min={0}
-              max={365}
-              defaultValue={cooldown}
-              className="input input--corto"
-            />
-            <Boton type="submit">Guardar espera</Boton>
-          </div>
-        </form>
-
-        <div className="flex flex-wrap items-center gap-[var(--space-xs)]">
-          {/* Lleva a una copia del formulario, con lo que haya en el editor
-              aunque no esté guardado. La de verdad no vale para esto: si está
-              cerrada, o hay una solicitud en revisión, no enseña las preguntas. */}
-          <EnlaceBoton href={`/panel/formularios/${tipo}/vista`}>
-            Cómo se verá
-          </EnlaceBoton>
+      <section className="tile grid gap-[var(--space-lg)]">
+        <div className="flex flex-wrap items-start justify-between gap-[var(--space-lg)]">
+          <form
+            action={async (datos: FormData) => {
+              "use server";
+              await cambiarCooldown(tipo, Number(datos.get("dias") ?? 7));
+            }}
+            className="grid shrink-0 content-start gap-[var(--space-2xs)]"
+          >
+            <label className="meta" htmlFor="cooldown">
+              Espera tras un rechazo (días)
+            </label>
+            <div className="flex items-center gap-[var(--space-xs)]">
+              <input
+                id="cooldown"
+                name="dias"
+                type="number"
+                min={0}
+                max={365}
+                defaultValue={cooldown}
+                className="input input--corto"
+              />
+              <Boton type="submit">Guardar</Boton>
+            </div>
+          </form>
 
           <form
-            action={async () => {
+            action={async (datos: FormData) => {
               "use server";
-              await cambiarEstadoFormulario(tipo, !abierto);
+              await cambiarVentana(tipo, {
+                desde: String(datos.get("desde") ?? ""),
+                hasta: String(datos.get("hasta") ?? ""),
+              });
             }}
+            className="grid shrink-0 content-start gap-[var(--space-2xs)]"
           >
-            <Boton type="submit" variante={abierto ? "outline" : "primary"}>
-              {abierto ? "Cerrar postulaciones" : "Abrir postulaciones"}
-            </Boton>
+            <span className="meta">Apertura programada (opcional)</span>
+            <div className="flex flex-nowrap items-center gap-[var(--space-xs)]">
+              <input
+                name="desde"
+                type="datetime-local"
+                defaultValue={desde}
+                className="input input--fecha"
+                aria-label="Se abre el"
+              />
+              <input
+                name="hasta"
+                type="datetime-local"
+                defaultValue={hasta}
+                className="input input--fecha"
+                aria-label="Se cierra el"
+              />
+              <Boton type="submit">Guardar</Boton>
+            </div>
           </form>
         </div>
       </section>
