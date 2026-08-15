@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Copy, Plus, RotateCcw, Trash2 } from "lucide-react";
 import {
   borrarFormulario,
   crearFormulario,
+  duplicarFormulario,
   restaurarFormulario,
 } from "@/lib/actions/formularios";
 import { Boton } from "@/components/ui/button";
@@ -47,6 +48,83 @@ export function NuevoFormulario() {
         <Boton type="submit" disabled={creando}>
           <Plus size={15} aria-hidden />
           {creando ? "Creando…" : "Crear"}
+        </Boton>
+      </div>
+
+      {error ? (
+        <span className="field__error" role="alert">
+          {error}
+        </span>
+      ) : null}
+    </form>
+  );
+}
+
+/**
+ * Copia el formulario actual con otro nombre y lleva directo a su editor.
+ *
+ * Va junto al título, así que empieza cerrado: un botón suelto, no una caja
+ * con un campo de texto siempre a la vista. El nombre solo hace falta pedirlo
+ * cuando alguien de verdad va a duplicar.
+ */
+export function DuplicarFormulario({
+  tipo,
+  tituloOriginal,
+}: {
+  tipo: string;
+  tituloOriginal: string;
+}) {
+  const router = useRouter();
+  const [abierto, setAbierto] = useState(false);
+  const [nombre, setNombre] = useState(`${tituloOriginal} (copia)`);
+  const [error, setError] = useState<string | null>(null);
+  const [duplicando, empezar] = useTransition();
+
+  function duplicar(evento: React.FormEvent) {
+    evento.preventDefault();
+    setError(null);
+
+    empezar(async () => {
+      const resultado = await duplicarFormulario(tipo, nombre);
+      if (resultado.ok && resultado.tipo) {
+        router.push(`/panel/formularios/${resultado.tipo}`);
+        return;
+      }
+      setError(resultado.mensaje ?? "No se pudo duplicar.");
+    });
+  }
+
+  if (!abierto) {
+    return (
+      <Boton type="button" variante="ghost" onClick={() => setAbierto(true)}>
+        <Copy size={15} aria-hidden />
+        Duplicar
+      </Boton>
+    );
+  }
+
+  return (
+    <form onSubmit={duplicar} className="grid justify-items-end gap-[var(--space-xs)]">
+      <div className="flex flex-wrap items-center justify-end gap-[var(--space-xs)]">
+        <input
+          className="input input--corto"
+          aria-label="Nombre del formulario duplicado"
+          value={nombre}
+          maxLength={60}
+          autoFocus
+          onChange={(evento) => setNombre(evento.target.value)}
+          disabled={duplicando}
+        />
+        <Boton type="submit" variante="primary" disabled={duplicando}>
+          {duplicando ? "Duplicando…" : "Confirmar"}
+        </Boton>
+        <Boton
+          type="button"
+          variante="ghost"
+          onClick={() => setAbierto(false)}
+          disabled={duplicando}
+        >
+          Cancelar
         </Boton>
       </div>
 

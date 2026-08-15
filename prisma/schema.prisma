@@ -276,6 +276,10 @@ model FormConfig {
   /// Orden en las tarjetas. Los del código van a cero y se ordenan entre ellos
   /// por el orden del registro; los creados desde el panel caen detrás.
   position     Int     @default(0)
+  /// Antes de esta fecha no se admite, aunque `open` sea true. Nulo: sin tope.
+  openFrom     DateTime?
+  /// A partir de esta fecha ya no se admite. Nulo: sin tope.
+  openUntil    DateTime?
 }
 
 enum TicketStatus {

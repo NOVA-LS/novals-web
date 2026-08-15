@@ -25,15 +25,35 @@ export function puedeEnviar({
   abierto,
   ultima,
   cooldownDays,
+  openFrom = null,
+  openUntil = null,
   ahora = new Date(),
 }: {
   abierto: boolean;
   ultima: UltimaSolicitud;
   cooldownDays: number;
+  /** Antes de esta fecha no se admite, aunque `abierto` sea true. */
+  openFrom?: Date | null;
+  /** A partir de esta fecha ya no se admite. */
+  openUntil?: Date | null;
   ahora?: Date;
 }): Veredicto {
+  // El cierre manual manda por encima de cualquier ventana programada: es el
+  // freno de mano de quien lleva el panel.
   if (!abierto) {
     return { permitido: false, motivo: "Este formulario está cerrado ahora mismo." };
+  }
+
+  if (openFrom && ahora.getTime() < openFrom.getTime()) {
+    return {
+      permitido: false,
+      motivo: `Este formulario se abre el ${openFrom.toLocaleDateString("es-ES")}.`,
+      hasta: openFrom,
+    };
+  }
+
+  if (openUntil && ahora.getTime() > openUntil.getTime()) {
+    return { permitido: false, motivo: "El plazo para este formulario ya ha terminado." };
   }
 
   if (ultima && (ultima.status === "PENDING" || ultima.status === "IN_REVIEW")) {

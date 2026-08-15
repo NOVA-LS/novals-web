@@ -93,4 +93,55 @@ describe("puedeEnviar", () => {
 
     expect(veredicto).toEqual({ permitido: true });
   });
+
+  it("bloquea antes de que empiece la ventana programada", () => {
+    const veredicto = puedeEnviar({
+      abierto: true,
+      ultima: null,
+      cooldownDays: 7,
+      ahora: AHORA,
+      openFrom: new Date(AHORA.getTime() + 3 * DIA_MS),
+    });
+
+    expect(veredicto.permitido).toBe(false);
+    if (!veredicto.permitido) expect(veredicto.hasta).toBeInstanceOf(Date);
+  });
+
+  it("bloquea después de que termine la ventana programada", () => {
+    const veredicto = puedeEnviar({
+      abierto: true,
+      ultima: null,
+      cooldownDays: 7,
+      ahora: AHORA,
+      openUntil: new Date(AHORA.getTime() - DIA_MS),
+    });
+
+    expect(veredicto.permitido).toBe(false);
+  });
+
+  it("permite enviar dentro de la ventana programada", () => {
+    const veredicto = puedeEnviar({
+      abierto: true,
+      ultima: null,
+      cooldownDays: 7,
+      ahora: AHORA,
+      openFrom: new Date(AHORA.getTime() - DIA_MS),
+      openUntil: new Date(AHORA.getTime() + DIA_MS),
+    });
+
+    expect(veredicto).toEqual({ permitido: true });
+  });
+
+  it("el cierre manual manda por encima de la ventana programada", () => {
+    const veredicto = puedeEnviar({
+      abierto: false,
+      ultima: null,
+      cooldownDays: 7,
+      ahora: AHORA,
+      openFrom: new Date(AHORA.getTime() - DIA_MS),
+      openUntil: new Date(AHORA.getTime() + DIA_MS),
+    });
+
+    expect(veredicto.permitido).toBe(false);
+  });
 });

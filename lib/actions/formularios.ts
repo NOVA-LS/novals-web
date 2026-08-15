@@ -142,6 +142,61 @@ export async function crearFormulario(
 }
 
 /**
+ * Copia un formulario entero —preguntas incluidas— con otro nombre.
+ *
+ * Nace cerrado, como uno creado de cero: duplicar no debe publicar de golpe
+ * un cuestionario a medio adaptar.
+ */
+export async function duplicarFormulario(
+  tipo: string,
+  tituloNuevo: string,
+): Promise<ResultadoFormulario & { tipo?: string }> {
+  const admin = await requireUser("ADMIN");
+
+  const origen = await traerForm(tipo);
+  if (!origen) return { ok: false, mensaje: "Ese formulario no existe." };
+
+  const nombre = tituloNuevo.trim();
+  if (nombre.length < 3) {
+    return { ok: false, mensaje: "Ponle un nombre de al menos 3 letras." };
+  }
+
+  const existentes = await traerFormularios();
+  const clave = claveDeCampo(
+    nombre,
+    existentes.map((form) => form.type),
+  );
+
+  const ultima = await db.formConfig.findFirst({
+    orderBy: { position: "desc" },
+    select: { position: true },
+  });
+
+  await db.formConfig.create({
+    data: {
+      type: clave,
+      open: false,
+      title: nombre,
+      summary: origen.summary,
+      fields: origen.fields as unknown as Prisma.InputJsonValue,
+      version: 1,
+      position: (ultima?.position ?? 0) + 1,
+    },
+  });
+
+  await apuntar({
+    accion: ACCIONES.FORMULARIO,
+    actor: admin,
+    objetivo: nombre,
+    url: `/panel/formularios/${clave}`,
+    detalle: `duplicado de ${origen.title}`,
+  });
+
+  refrescar(clave);
+  return { ok: true, tipo: clave };
+}
+
+/**
  * Borra un formulario creado desde el panel.
  *
  * No se borran los que tienen fichero —volverían solos en el siguiente arranque—

@@ -56,6 +56,32 @@ export async function cambiarCooldown(tipo: string, dias: number) {
   revalidatePath(`/panel/formularios/${tipo}`);
 }
 
+/**
+ * Guarda la ventana de apertura programada. Una fecha vacía en el formulario
+ * llega como cadena vacía, no como `undefined`; se guarda como `null`.
+ */
+export async function cambiarVentana(
+  tipo: string,
+  datos: { desde: string; hasta: string },
+) {
+  await requireUser("ADMIN");
+  if (!(await traerForm(tipo))) throw new Error("FORMULARIO_DESCONOCIDO");
+
+  const desde = datos.desde ? new Date(datos.desde) : null;
+  const hasta = datos.hasta ? new Date(datos.hasta) : null;
+
+  await db.formConfig.upsert({
+    where: { type: tipo },
+    update: { openFrom: desde, openUntil: hasta },
+    create: { type: tipo, openFrom: desde, openUntil: hasta },
+  });
+
+  revalidatePath("/panel/formularios");
+  revalidatePath(`/panel/formularios/${tipo}`);
+  revalidatePath("/");
+  revalidatePath("/formularios");
+}
+
 export async function cambiarRol(userId: string, rol: Role) {
   const admin = await requireUser("ADMIN");
 
