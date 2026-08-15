@@ -21,6 +21,8 @@ const clave = z
   .max(40);
 
 const etiqueta = z.string().trim().min(1, "Ponle un enunciado.").max(160);
+/** Para texto informativo y aviso: son un título, no una pregunta, y puede no llevar. */
+const etiquetaLibre = z.string().trim().max(160);
 const ayuda = z.string().trim().max(300).optional();
 const entero = z.number().int().min(0).max(100000);
 
@@ -38,7 +40,7 @@ const opcion = z.object({
 
 /** Que el mínimo no se pase del máximo; si no, no habría respuesta válida. */
 function ordenados(
-  campo: { min?: number; max?: number },
+  campo: { min?: number | string; max?: number | string },
   ctx: z.RefinementCtx,
 ) {
   if (campo.min !== undefined && campo.max !== undefined && campo.min > campo.max) {
@@ -71,7 +73,20 @@ export const esquemaCampo = z
     }),
     z.object({
       ...base,
+      kind: z.literal("date"),
+      min: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha no válida.")
+        .optional(),
+      max: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha no válida.")
+        .optional(),
+    }),
+    z.object({
+      ...base,
       kind: z.literal("select"),
+      multiple: z.boolean().optional(),
       options: z
         .array(opcion)
         .min(1, "Una lista de opciones necesita al menos una.")
@@ -90,12 +105,17 @@ export const esquemaCampo = z
         }),
     }),
     z.object({ ...base, kind: z.literal("checkbox") }),
+    z.object({ ...base, kind: z.literal("file") }),
+    z.object({ ...base, kind: z.literal("seccion") }),
+    z.object({ ...base, kind: z.literal("texto"), label: etiquetaLibre }),
+    z.object({ ...base, kind: z.literal("aviso"), label: etiquetaLibre }),
   ])
   .superRefine((campo, ctx) => {
     if (campo.kind === "text" || campo.kind === "textarea") {
       ordenados({ min: campo.minLength, max: campo.maxLength }, ctx);
     }
     if (campo.kind === "number") ordenados(campo, ctx);
+    if (campo.kind === "date") ordenados(campo, ctx);
   });
 
 export const esquemaDefinicion = z.object({

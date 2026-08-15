@@ -24,6 +24,16 @@ export function FormRenderer({ form }: { form: FormDefinition }) {
     try {
       const valores = JSON.parse(guardado) as Record<string, unknown>;
       for (const [nombre, valor] of Object.entries(valores)) {
+        if (Array.isArray(valor)) {
+          const casillas = document.querySelectorAll<HTMLInputElement>(
+            `[name="${CSS.escape(nombre)}"]`,
+          );
+          casillas.forEach((casilla) => {
+            casilla.checked = valor.includes(casilla.value);
+          });
+          continue;
+        }
+
         const campo = document.querySelector<HTMLInputElement>(
           `[name="${CSS.escape(nombre)}"]`,
         );
@@ -40,6 +50,16 @@ export function FormRenderer({ form }: { form: FormDefinition }) {
     const datos = new FormData(formulario);
     const valores: Record<string, unknown> = {};
     for (const campo of form.fields) {
+      if (campo.kind === "seccion" || campo.kind === "texto" || campo.kind === "aviso") continue;
+      // Un archivo no se puede guardar en localStorage: hay que volver a
+      // elegirlo si se recarga la página.
+      if (campo.kind === "file") continue;
+
+      if (campo.kind === "select" && campo.multiple) {
+        valores[campo.name] = datos.getAll(campo.name);
+        continue;
+      }
+
       valores[campo.name] =
         campo.kind === "checkbox"
           ? datos.get(campo.name) !== null
@@ -58,6 +78,21 @@ export function FormRenderer({ form }: { form: FormDefinition }) {
     // Misma validación que en el servidor: sale del mismo esquema.
     const bruto: Record<string, unknown> = {};
     for (const campo of form.fields) {
+      if (campo.kind === "seccion" || campo.kind === "texto" || campo.kind === "aviso") continue;
+
+      if (campo.kind === "file") {
+        // La URL real la resuelve el servidor al subir el archivo; aquí solo
+        // hace falta saber si hay uno elegido, para el aviso de obligatorio.
+        const elegido = datos.get(campo.name);
+        bruto[campo.name] = elegido instanceof File && elegido.size > 0 ? "elegido" : "";
+        continue;
+      }
+
+      if (campo.kind === "select" && campo.multiple) {
+        bruto[campo.name] = datos.getAll(campo.name);
+        continue;
+      }
+
       bruto[campo.name] =
         campo.kind === "checkbox"
           ? datos.get(campo.name) !== null

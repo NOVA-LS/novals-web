@@ -28,6 +28,10 @@ describe("rutaDeSubida", () => {
     }
   });
 
+  it("acepta la extensión de los documentos PDF", () => {
+    expect(rutaDeSubida("contrato.pdf")).not.toBeNull();
+  });
+
   it("no deja salir del directorio", () => {
     for (const nombre of [
       "../nova.db",

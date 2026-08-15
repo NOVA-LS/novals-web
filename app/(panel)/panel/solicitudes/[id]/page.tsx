@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
+import { esPregunta } from "@/lib/forms";
 import { traerForm, traerTitulos } from "@/lib/forms/registro";
+import { textoDeRespuesta } from "@/lib/forms/respuesta";
 import { formatearFechaHora } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { EstadoBadge } from "@/components/ui/badge";
@@ -132,23 +134,24 @@ export default async function SolicitudPage({
       <section className="tile grid gap-[var(--space-md)]">
         <h2 className="display text-(length:--text-md)">Respuestas</h2>
         <dl className="grid gap-[var(--space-md)]">
-          {(form?.fields ?? []).map((campo) => {
+          {(form?.fields ?? []).filter(esPregunta).map((campo) => {
             const valor = respuestas[campo.name];
             return (
               <div key={campo.name} className="grid gap-[var(--space-2xs)]">
                 <dt className="meta">{campo.label}</dt>
                 <dd className="respuesta text-[var(--color-muted)]">
-                  {campo.kind === "checkbox"
-                    ? valor
-                      ? "Sí"
-                      : "No"
-                    : campo.kind === "select"
-                      ? // Guardada está la clave de la opción, que desde que los
-                        // formularios se editan puede ser un «opcion_2»: aquí se
-                        // enseña el texto que leyó quien contestó.
-                        (campo.options.find((opcion) => opcion.value === valor)
-                          ?.label ?? String(valor ?? "—"))
-                      : String(valor ?? "—")}
+                  {campo.kind === "file" && valor ? (
+                    <a
+                      href={String(valor)}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="underline-offset-4 hover:underline"
+                    >
+                      Ver PDF
+                    </a>
+                  ) : (
+                    textoDeRespuesta(campo, valor) || "—"
+                  )}
                 </dd>
               </div>
             );

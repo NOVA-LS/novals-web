@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from "lucide-react";
 import { guardarFormulario } from "@/lib/actions/formularios";
 import { claveDeCampo, huellaDeCampos } from "@/lib/forms/esquema";
 import { guardarVistaBruta } from "@/lib/forms/vista-previa";
-import type { Field, FormDefinition } from "@/lib/forms";
+import { esPregunta, type Field, type FormDefinition } from "@/lib/forms";
 import { Boton } from "@/components/ui/button";
 
 /**
@@ -34,8 +34,13 @@ const TIPOS: { valor: Field["kind"]; texto: string }[] = [
   { valor: "text", texto: "Texto corto" },
   { valor: "textarea", texto: "Texto largo" },
   { valor: "number", texto: "Número" },
+  { valor: "date", texto: "Fecha" },
   { valor: "select", texto: "Lista de opciones" },
   { valor: "checkbox", texto: "Casilla" },
+  { valor: "file", texto: "Subir PDF" },
+  { valor: "seccion", texto: "Sección" },
+  { valor: "texto", texto: "Texto informativo" },
+  { valor: "aviso", texto: "Aviso destacado" },
 ];
 
 function lineasDe(campos: Field[]): Linea[] {
@@ -80,11 +85,23 @@ function conTipo(campo: Field, kind: Field["kind"]): Field {
           campo.kind === "select"
             ? campo.options
             : [{ value: "opcion_1", label: "Primera opción" }],
+        multiple: campo.kind === "select" ? campo.multiple : undefined,
       };
     case "number":
       return { ...base, kind };
+    case "date":
+      return { ...base, kind };
     case "checkbox":
       return { ...base, kind };
+    case "file":
+      return { ...base, kind };
+    // Sin required: no son preguntas, no tiene sentido pedir obligatoriedad.
+    case "seccion":
+      return { name: base.name, label: base.label, help: base.help, kind };
+    case "texto":
+      return { name: base.name, label: base.label, help: base.help, kind };
+    case "aviso":
+      return { name: base.name, label: base.label, help: base.help, kind };
     default:
       return { ...base, kind: "text" };
   }
@@ -189,6 +206,19 @@ export function EditorFormulario({
     setAviso(null);
   }
 
+  function duplicar(indice: number) {
+    const original = lineas[indice];
+    const ocupadas = lineas.map((linea) => linea.campo.name);
+    const nombre = claveDeCampo(original.campo.label || "pregunta", ocupadas);
+    const copia = { ...structuredClone(original.campo), name: nombre } as Field;
+
+    const clave = crypto.randomUUID();
+    const nuevas = [...lineas];
+    nuevas.splice(indice + 1, 0, { clave, nuevo: true, campo: copia });
+    setLineas(nuevas);
+    setAviso(null);
+  }
+
   function guardar() {
     setAviso(null);
     empezar(async () => {
@@ -257,7 +287,7 @@ export function EditorFormulario({
 
       <div className="section-head section-head--fila">
         <h2 className="display text-(length:--text-lg)">
-          Preguntas ({lineas.length})
+          Preguntas ({lineas.filter((linea) => esPregunta(linea.campo)).length})
         </h2>
         <Boton type="button" onClick={añadir}>
           <Plus size={15} aria-hidden />
@@ -310,6 +340,14 @@ export function EditorFormulario({
                   </Boton>
                   <Boton
                     type="button"
+                    variante="ghost"
+                    aria-label="Duplicar la pregunta"
+                    onClick={() => duplicar(indice)}
+                  >
+                    <Copy size={15} aria-hidden />
+                  </Boton>
+                  <Boton
+                    type="button"
                     variante="danger"
                     aria-label="Quitar la pregunta"
                     onClick={() => quitar(linea.clave)}
@@ -321,14 +359,22 @@ export function EditorFormulario({
 
               <div className="field">
                 <label className="field__label" htmlFor={`${idBase}-label`}>
-                  Enunciado
+                  {campo.kind === "seccion"
+                    ? "Título de la sección"
+                    : campo.kind === "texto" || campo.kind === "aviso"
+                      ? "Título (opcional)"
+                      : "Enunciado"}
                 </label>
                 <input
                   id={`${idBase}-label`}
                   className="input"
                   value={campo.label}
                   maxLength={160}
-                  placeholder="¿Qué se le pregunta?"
+                  placeholder={
+                    campo.kind === "texto" || campo.kind === "aviso"
+                      ? "Opcional"
+                      : "¿Qué se le pregunta?"
+                  }
                   onChange={(evento) =>
                     cambiarEnunciado(linea.clave, evento.target.value)
                   }
@@ -360,20 +406,39 @@ export function EditorFormulario({
 
                 <div className="field">
                   <label className="field__label" htmlFor={`${idBase}-ayuda`}>
-                    Aclaración
+                    {campo.kind === "seccion"
+                      ? "Texto bajo el título"
+                      : campo.kind === "texto" || campo.kind === "aviso"
+                        ? "Texto"
+                        : "Aclaración"}
                   </label>
-                  <input
-                    id={`${idBase}-ayuda`}
-                    className="input"
-                    value={campo.help ?? ""}
-                    maxLength={300}
-                    placeholder="Opcional: se lee bajo el enunciado"
-                    onChange={(evento) =>
-                      cambiarComun(linea.clave, {
-                        help: evento.target.value || undefined,
-                      })
-                    }
-                  />
+                  {campo.kind === "texto" || campo.kind === "aviso" ? (
+                    <textarea
+                      id={`${idBase}-ayuda`}
+                      className="input"
+                      rows={3}
+                      maxLength={300}
+                      value={campo.help ?? ""}
+                      onChange={(evento) =>
+                        cambiarComun(linea.clave, {
+                          help: evento.target.value || undefined,
+                        })
+                      }
+                    />
+                  ) : (
+                    <input
+                      id={`${idBase}-ayuda`}
+                      className="input"
+                      value={campo.help ?? ""}
+                      maxLength={300}
+                      placeholder="Opcional: se lee bajo el enunciado"
+                      onChange={(evento) =>
+                        cambiarComun(linea.clave, {
+                          help: evento.target.value || undefined,
+                        })
+                      }
+                    />
+                  )}
                 </div>
               </div>
 
@@ -487,31 +552,50 @@ export function EditorFormulario({
               ) : null}
 
               {campo.kind === "select" ? (
-                <Opciones
-                  campo={campo}
-                  idBase={idBase}
-                  nuevo={linea.nuevo}
-                  alCambiar={(opciones) =>
-                    cambiar(linea.clave, (actual) =>
-                      actual.kind === "select"
-                        ? { ...actual, options: opciones }
-                        : actual,
-                    )
-                  }
-                />
+                <>
+                  <label className="flex items-center gap-[var(--space-xs)] text-sm text-[var(--color-muted)]">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-[var(--color-ink)]"
+                      checked={campo.multiple ?? false}
+                      onChange={(evento) =>
+                        cambiar(linea.clave, (actual) =>
+                          actual.kind === "select"
+                            ? { ...actual, multiple: evento.target.checked }
+                            : actual,
+                        )
+                      }
+                    />
+                    Permitir varias respuestas
+                  </label>
+                  <Opciones
+                    campo={campo}
+                    idBase={idBase}
+                    nuevo={linea.nuevo}
+                    alCambiar={(opciones) =>
+                      cambiar(linea.clave, (actual) =>
+                        actual.kind === "select"
+                          ? { ...actual, options: opciones }
+                          : actual,
+                      )
+                    }
+                  />
+                </>
               ) : null}
 
-              <label className="flex items-center gap-[var(--space-xs)] text-sm text-[var(--color-muted)]">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-[var(--color-ink)]"
-                  checked={campo.required ?? true}
-                  onChange={(evento) =>
-                    cambiarComun(linea.clave, { required: evento.target.checked })
-                  }
-                />
-                Obligatoria
-              </label>
+              {campo.kind === "seccion" || campo.kind === "texto" || campo.kind === "aviso" ? null : (
+                <label className="flex items-center gap-[var(--space-xs)] text-sm text-[var(--color-muted)]">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[var(--color-ink)]"
+                    checked={campo.required ?? true}
+                    onChange={(evento) =>
+                      cambiarComun(linea.clave, { required: evento.target.checked })
+                    }
+                  />
+                  Obligatoria
+                </label>
+              )}
             </li>
           );
         })}

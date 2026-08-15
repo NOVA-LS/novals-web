@@ -71,6 +71,67 @@ describe("esquema de un formulario guardado", () => {
     expect(esquemaBorrador.safeParse(sinOpciones).success).toBe(false);
   });
 
+  it("acepta sección, texto y aviso sin campo obligatorio", () => {
+    const conBloques = {
+      ...borrador,
+      fields: [
+        edad,
+        { name: "intro", kind: "seccion" as const, label: "Antes de nada" },
+        { name: "nota", kind: "texto" as const, label: "", help: "Ojo con esto." },
+        { name: "cuidado", kind: "aviso" as const, label: "Aviso", help: "No copies." },
+      ],
+    };
+    expect(esquemaBorrador.safeParse(conBloques).success).toBe(true);
+  });
+
+  it("acepta un campo de fecha con mínimo y máximo en orden", () => {
+    const conFecha = {
+      ...borrador,
+      fields: [
+        {
+          name: "cuando",
+          kind: "date" as const,
+          label: "¿Cuándo?",
+          min: "2020-01-01",
+          max: "2020-12-31",
+        },
+      ],
+    };
+    expect(esquemaBorrador.safeParse(conFecha).success).toBe(true);
+  });
+
+  it("rechaza una fecha con el mínimo por encima del máximo", () => {
+    const alReves = {
+      ...borrador,
+      fields: [
+        {
+          name: "cuando",
+          kind: "date" as const,
+          label: "¿Cuándo?",
+          min: "2020-12-31",
+          max: "2020-01-01",
+        },
+      ],
+    };
+    expect(esquemaBorrador.safeParse(alReves).success).toBe(false);
+  });
+
+  it("acepta un campo de subir archivo", () => {
+    const conArchivo = {
+      ...borrador,
+      fields: [{ name: "doc", kind: "file" as const, label: "Sube tu documento" }],
+    };
+    expect(esquemaBorrador.safeParse(conArchivo).success).toBe(true);
+  });
+
+  it("acepta una lista de opciones marcada como múltiple", () => {
+    const multiple = {
+      ...borrador,
+      fields: [{ ...campos[1], multiple: true }],
+    };
+    expect(esquemaBorrador.safeParse(multiple).success).toBe(true);
+  });
+
   it("dice en qué pregunta está el fallo", () => {
     const parsed = esquemaBorrador.safeParse({
       ...borrador,

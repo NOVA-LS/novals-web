@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   FORMS,
   answersFromFormData,
+  esPregunta,
   getForm,
   schemaFor,
   type FormDefinition,
@@ -53,6 +54,35 @@ const form: FormDefinition = {
       maxLength: 1000,
     },
     { name: "normativa", kind: "checkbox", label: "Acepto la normativa" },
+  ],
+};
+
+/**
+ * Un segundo formulario con los tipos de campo que no son preguntas de toda
+ * la vida: bloques sin respuesta, subida de archivo, fecha y lista múltiple.
+ */
+const formAmpliado: FormDefinition = {
+  type: "prueba_ampliada",
+  title: "Prueba ampliada",
+  summary: "Los tipos de campo nuevos.",
+  version: 1,
+  fields: [
+    { name: "intro", kind: "seccion", label: "Antes de empezar" },
+    { name: "nota", kind: "texto", label: "", help: "Lee esto con calma." },
+    { name: "cuidado", kind: "aviso", label: "Importante", help: "No mientas." },
+    { name: "documento", kind: "file", label: "Sube tu DNI" },
+    { name: "nacimiento", kind: "date", label: "Fecha de nacimiento" },
+    {
+      name: "colores",
+      kind: "select",
+      label: "Colores favoritos",
+      multiple: true,
+      options: [
+        { value: "rojo", label: "Rojo" },
+        { value: "azul", label: "Azul" },
+        { value: "verde", label: "Verde" },
+      ],
+    },
   ],
 };
 
@@ -134,6 +164,80 @@ describe("schemaFor", () => {
       ),
     );
     expect(parsed.success).toBe(true);
+  });
+});
+
+describe("esPregunta", () => {
+  it("descarta sección, texto y aviso", () => {
+    expect(formAmpliado.fields.filter(esPregunta).map((f) => f.name)).toEqual([
+      "documento",
+      "nacimiento",
+      "colores",
+    ]);
+  });
+});
+
+describe("schemaFor con los tipos nuevos", () => {
+  const schema = schemaFor(formAmpliado);
+
+  const validas = {
+    documento: "https://x/subidas/dni.pdf",
+    nacimiento: "2005-03-14",
+    colores: ["rojo", "azul"],
+  };
+
+  it("acepta un envío completo, sin pedir nada de sección/texto/aviso", () => {
+    const parsed = schema.safeParse(validas);
+    expect(parsed.success).toBe(true);
+  });
+
+  it("no incluye sección, texto ni aviso en el shape", () => {
+    expect(Object.keys(schema.shape)).toEqual(["documento", "nacimiento", "colores"]);
+  });
+
+  it("exige el archivo cuando el campo es obligatorio", () => {
+    const parsed = schema.safeParse({ ...validas, documento: "" });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rechaza una fecha con formato inválido", () => {
+    const parsed = schema.safeParse({ ...validas, nacimiento: "14-03-2005" });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("exige al menos una opción cuando la lista múltiple es obligatoria", () => {
+    const parsed = schema.safeParse({ ...validas, colores: [] });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rechaza una opción que no está en la lista, dentro de la múltiple", () => {
+    const parsed = schema.safeParse({ ...validas, colores: ["morado"] });
+    expect(parsed.success).toBe(false);
+  });
+});
+
+describe("answersFromFormData con los tipos nuevos", () => {
+  it("no lee nada de sección, texto ni aviso", () => {
+    const datos = formData({ nacimiento: "2005-03-14" });
+    const raw = answersFromFormData(formAmpliado, datos);
+    expect(raw).not.toHaveProperty("intro");
+    expect(raw).not.toHaveProperty("nota");
+    expect(raw).not.toHaveProperty("cuidado");
+  });
+
+  it("tampoco lee el archivo: lo resuelve quien llama, no este helper", () => {
+    const datos = formData({ nacimiento: "2005-03-14" });
+    expect(answersFromFormData(formAmpliado, datos)).not.toHaveProperty("documento");
+  });
+
+  it("lee la lista múltiple como array con getAll", () => {
+    const datos = new FormData();
+    datos.set("nacimiento", "2005-03-14");
+    datos.append("colores", "rojo");
+    datos.append("colores", "verde");
+
+    const raw = answersFromFormData(formAmpliado, datos);
+    expect(raw.colores).toEqual(["rojo", "verde"]);
   });
 });
 

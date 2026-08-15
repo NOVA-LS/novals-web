@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp, { type OutputInfo } from "sharp";
-import { MAX_IMAGEN_MB, MAX_LADO_PX } from "@/lib/limites";
+import { MAX_IMAGEN_MB, MAX_LADO_PX, MAX_PDF_MB } from "@/lib/limites";
 
 /**
  * Guardado de imágenes en disco.
@@ -24,7 +24,7 @@ const TIPOS = new Set(["image/jpeg", "image/png", "image/webp"]);
  * signos, y una extensión de imagen. Ni barras, ni puntos al principio, ni dos
  * extensiones seguidas.
  */
-const NOMBRE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*\.(webp|jpe?g|png)$/;
+const NOMBRE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*\.(webp|jpe?g|png|pdf)$/;
 
 /** Qué se manda en Content-Type según cómo acabe el nombre. */
 export const TIPO_POR_EXTENSION: Record<string, string> = {
@@ -32,6 +32,7 @@ export const TIPO_POR_EXTENSION: Record<string, string> = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".png": "image/png",
+  ".pdf": "application/pdf",
 };
 
 /**
@@ -112,6 +113,35 @@ export async function guardarImagen(
     width: salida.info.width,
     height: salida.info.height,
   };
+}
+
+/**
+ * Valida y escribe un PDF subido. Lanza con un mensaje que se le puede
+ * enseñar a quien lo sube.
+ *
+ * A diferencia de `guardarImagen`, el fichero se escribe tal cual: un PDF no
+ * se reescala ni se reescribe, así que no hay nada que `sharp` pueda hacer
+ * con él.
+ */
+export async function guardarDocumento(
+  archivo: File,
+  etiqueta = "El archivo",
+  maxMb = MAX_PDF_MB,
+): Promise<{ url: string }> {
+  if (archivo.type !== "application/pdf") {
+    throw new Error(`${etiqueta} debe ser un PDF.`);
+  }
+  if (archivo.size > maxMb * 1024 * 1024) {
+    throw new Error(`${etiqueta} supera los ${maxMb} MB.`);
+  }
+
+  const bytes = Buffer.from(await archivo.arrayBuffer());
+
+  await mkdir(DIRECTORIO, { recursive: true });
+  const nombre = `${randomUUID()}.pdf`;
+  await writeFile(path.join(DIRECTORIO, nombre), bytes);
+
+  return { url: `/uploads/${nombre}` };
 }
 
 /**

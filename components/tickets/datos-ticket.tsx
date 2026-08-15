@@ -1,3 +1,5 @@
+import { esPregunta } from "@/lib/forms";
+import { textoDeRespuesta } from "@/lib/forms/respuesta";
 import type { CategoriaTicket } from "@/lib/tickets/categorias";
 
 /**
@@ -8,7 +10,8 @@ import type { CategoriaTicket } from "@/lib/tickets/categorias";
  * enterarse de una.
  *
  * Se dejan fuera dos campos: `asunto`, que ya es el título del ticket, y
- * `detalle`, que es el cuerpo del propio mensaje.
+ * `detalle`, que es el cuerpo del propio mensaje. También se dejan fuera los
+ * bloques que no son pregunta (sección, texto, aviso).
  */
 export function DatosTicket({
   categoria,
@@ -18,24 +21,15 @@ export function DatosTicket({
   respuestas: Record<string, unknown>;
 }) {
   const campos = categoria.campos.filter(
-    (campo) => campo.name !== "detalle" && campo.name !== "asunto",
+    (campo) => esPregunta(campo) && campo.name !== "detalle" && campo.name !== "asunto",
   );
 
   const visibles = campos
-    .map((campo) => {
-      const valor = respuestas[campo.name];
-      const texto =
-        campo.kind === "select"
-          ? (campo.options.find((opcion) => opcion.value === valor)?.label ??
-            String(valor ?? ""))
-          : campo.kind === "checkbox"
-            ? valor
-              ? "Sí"
-              : "No"
-            : String(valor ?? "");
-
-      return { nombre: campo.name, etiqueta: campo.label, texto: texto.trim() };
-    })
+    .map((campo) => ({
+      nombre: campo.name,
+      etiqueta: campo.label,
+      texto: textoDeRespuesta(campo, respuestas[campo.name]).trim(),
+    }))
     .filter((campo) => campo.texto !== "");
 
   if (visibles.length === 0) return null;

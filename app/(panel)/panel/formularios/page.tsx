@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
+import { esPregunta } from "@/lib/forms";
 import { traerFormularios } from "@/lib/forms/registro";
 import { cambiarEstadoFormulario } from "@/lib/actions/admin";
 import { Badge } from "@/components/ui/badge";
@@ -65,7 +66,7 @@ export default async function PanelFormulariosPage() {
                   </p>
 
                   <span className="meta">
-                    Versión {form.version} · {form.fields.length} preguntas ·{" "}
+                    Versión {form.version} · {form.fields.filter(esPregunta).length} preguntas ·{" "}
                     {recibidas.get(form.type) ?? 0} recibidas
                   </span>
                 </div>

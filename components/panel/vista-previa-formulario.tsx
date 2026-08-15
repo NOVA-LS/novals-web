@@ -2,7 +2,7 @@
 
 import { useMemo, useSyncExternalStore } from "react";
 import { definicionDeVista, leerVistaBruta } from "@/lib/forms/vista-previa";
-import type { FormDefinition } from "@/lib/forms";
+import { esPregunta, type FormDefinition } from "@/lib/forms";
 import { CampoFormulario } from "@/components/ui/campo";
 import { Boton } from "@/components/ui/button";
 
@@ -77,7 +77,7 @@ export function VistaPreviaFormulario({ form }: { form: FormDefinition }) {
             ? "Esto es lo que tienes escrito en el editor. Todavía no lo ve nadie: hay que guardarlo."
             : "Esto es lo que hay guardado ahora mismo, igual que lo ve quien va a postular."}
         </p>
-        <span className="meta">{vista.fields.length} preguntas</span>
+        <span className="meta">{vista.fields.filter(esPregunta).length} preguntas</span>
       </aside>
     </div>
   );

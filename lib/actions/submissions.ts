@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { answersFromFormData, schemaFor } from "@/lib/forms";
 import { traerForm } from "@/lib/forms/registro";
+import { guardarDocumento } from "@/lib/uploads";
 import { notifyStaff } from "@/lib/discord";
 import { clamp, EMBED_COLOR } from "@/lib/embed";
 import { avisarUsuario } from "@/lib/notifications";
@@ -58,13 +59,38 @@ export async function enviarSolicitud(
     abierto: config?.open !== false,
     ultima,
     cooldownDays: config?.cooldownDays ?? 7,
+    openFrom: config?.openFrom ?? null,
+    openUntil: config?.openUntil ?? null,
   });
 
   if (!veredicto.permitido) {
     return { ok: false, mensaje: veredicto.motivo };
   }
 
-  const parsed = schemaFor(form).safeParse(answersFromFormData(form, datos));
+  // Los archivos hay que subirlos antes de poder validar su respuesta: hasta
+  // entonces no se sabe la URL con la que se guardarán.
+  const raw = answersFromFormData(form, datos);
+  for (const campo of form.fields) {
+    if (campo.kind !== "file") continue;
+
+    const archivo = datos.get(campo.name);
+    if (!(archivo instanceof File) || archivo.size === 0) {
+      raw[campo.name] = "";
+      continue;
+    }
+
+    try {
+      const subido = await guardarDocumento(archivo, campo.label);
+      raw[campo.name] = subido.url;
+    } catch (error) {
+      return {
+        ok: false,
+        mensaje: error instanceof Error ? error.message : "No se pudo subir el archivo.",
+      };
+    }
+  }
+
+  const parsed = schemaFor(form).safeParse(raw);
   if (!parsed.success) {
     const errores: Record<string, string> = {};
     for (const issue of parsed.error.issues) {

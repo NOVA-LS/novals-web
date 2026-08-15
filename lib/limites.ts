@@ -19,6 +19,9 @@ export const MAX_FOTO_MB = 10;
 /** Imágenes que se pueden colgar de un mensaje de ticket. */
 export const MAX_ADJUNTOS = 3;
 
+/** Documento PDF de una pregunta de formulario. */
+export const MAX_PDF_MB = 8;
+
 /** Fotos de galería que se admiten en una sola tanda. */
 export const MAX_IMAGENES_POR_TANDA = 10;
 

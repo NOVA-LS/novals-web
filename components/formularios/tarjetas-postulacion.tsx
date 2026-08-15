@@ -2,6 +2,7 @@ import "server-only";
 import Link from "next/link";
 import { Lock } from "lucide-react";
 import { db } from "@/lib/db";
+import { esPregunta } from "@/lib/forms";
 import { traerFormularios } from "@/lib/forms/registro";
 import { currentUser } from "@/lib/guards";
 import { puedeEnviar } from "@/lib/rules";
@@ -76,6 +77,8 @@ export async function TarjetasPostulacion({
           abierto,
           ultima,
           cooldownDays: config?.cooldownDays ?? 7,
+          openFrom: config?.openFrom ?? null,
+          openUntil: config?.openUntil ?? null,
         });
 
         // Sin sesión no se juzga a nadie: la propia página del formulario pide
@@ -100,7 +103,7 @@ export async function TarjetasPostulacion({
             </div>
 
             <p className="text-sm text-[var(--color-muted)]">{form.summary}</p>
-            <span className="meta">{form.fields.length} preguntas</span>
+            <span className="meta">{form.fields.filter(esPregunta).length} preguntas</span>
           </>
         );
 
