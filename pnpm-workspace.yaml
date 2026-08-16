@@ -1,3 +1,16 @@
+overrides:
+  sharp: '>=0.35.0'
+  postcss: '>=8.5.23'
+  fast-uri: '>=3.1.5'
+  nanoid: '>=3.3.18'
+  js-yaml: '>=4.3.1'
+  # Dos líneas mayores en juego: minimatch@3 (viejo, lo usa @eslint/config-array)
+  # solo entiende brace-expansion 1.x —con 5.x rompe con "expand is not a
+  # function"—, y minimatch@10 ya pide 5.x. Versión exacta y no un rango: con
+  # ">=1.1.18" pnpm tomaba la más alta que lo cumpliera, que es una 5.x, y volvía
+  # a romper lo mismo que se quería arreglar.
+  brace-expansion@1: '1.1.18'
+  brace-expansion@5: '5.0.9'
 allowBuilds:
   better-sqlite3: true
   '@prisma/engines': true
