@@ -36,7 +36,6 @@ export const traerFormularios = unstable_cache(
         title: true,
         summary: true,
         fields: true,
-        version: true,
         position: true,
       },
     });
@@ -56,7 +55,6 @@ export const traerFormularios = unstable_cache(
               type: fila.type,
               title: fila.title ?? base?.title ?? fila.type,
               summary: fila.summary ?? base?.summary ?? "",
-              version: fila.version ?? 1,
               fields: fila.fields,
             });
 

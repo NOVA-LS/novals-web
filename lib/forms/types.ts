@@ -28,6 +28,12 @@ export type Field =
       options: { value: string; label: string }[];
       /** Cuando es true, la respuesta es una lista de claves y no una sola. */
       multiple?: boolean;
+      /**
+       * Solo cuenta si `multiple` no está puesto: una múltiple ya se dibuja
+       * como casillas siempre. Con una sola respuesta, decide si se ve como
+       * desplegable (por defecto) o como una lista de casillas de una sola.
+       */
+      radios?: boolean;
     })
   | (Base & { kind: "checkbox" })
   /** Un archivo PDF. La respuesta guardada es su URL, no el fichero. */
@@ -52,8 +58,6 @@ export type FormDefinition = {
   type: string;
   title: string;
   summary: string;
-  /** Súbela al cambiar las preguntas: las respuestas antiguas conservan la suya */
-  version: number;
   fields: Field[];
 };
 

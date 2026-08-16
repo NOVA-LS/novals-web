@@ -211,7 +211,6 @@ describe("categorías", () => {
       type: reporte.clave,
       title: reporte.nombre,
       summary: reporte.descripcion,
-      version: 1,
       fields: reporte.campos,
     });
 

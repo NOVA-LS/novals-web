@@ -55,7 +55,6 @@ function comoFormulario(categoria: CategoriaTicket): FormDefinition {
     type: categoria.clave,
     title: categoria.nombre,
     summary: categoria.descripcion,
-    version: 1,
     fields: categoria.campos,
   };
 }

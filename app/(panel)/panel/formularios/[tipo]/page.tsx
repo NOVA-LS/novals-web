@@ -84,10 +84,6 @@ export default async function EditarFormularioPage({
               <dd>{form.type}</dd>
             </div>
             <div>
-              <dt className="meta">Versión</dt>
-              <dd>{form.version}</dd>
-            </div>
-            <div>
               <dt className="meta">Preguntas</dt>
               <dd>{form.fields.filter(esPregunta).length}</dd>
             </div>

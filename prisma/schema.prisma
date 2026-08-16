@@ -223,7 +223,6 @@ model Post {
 model Submission {
   id          String    @id @default(cuid())
   type        String
-  formVersion Int
   userId      String
   user        User      @relation("autor", fields: [userId], references: [id])
   answers     Json
@@ -270,9 +269,6 @@ model FormConfig {
   summary      String?
   /// Las preguntas, con la forma de Field[] (lib/forms/types.ts).
   fields       Json?
-  /// Sube sola al cambiar las preguntas: las respuestas ya enviadas conservan
-  /// la suya, así que se puede saber a qué cuestionario contestaron.
-  version      Int?
   /// Orden en las tarjetas. Los del código van a cero y se ordenan entre ellos
   /// por el orden del registro; los creados desde el panel caen detrás.
   position     Int     @default(0)

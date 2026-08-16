@@ -103,7 +103,6 @@ export async function enviarSolicitud(
   const solicitud = await db.submission.create({
     data: {
       type: tipo,
-      formVersion: form.version,
       userId: usuario.id,
       answers: parsed.data as Prisma.InputJsonValue,
       status: "PENDING",

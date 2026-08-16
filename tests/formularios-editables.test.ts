@@ -132,6 +132,14 @@ describe("esquema de un formulario guardado", () => {
     expect(esquemaBorrador.safeParse(multiple).success).toBe(true);
   });
 
+  it("acepta una lista de opciones marcada para verse en casillas", () => {
+    const radios = {
+      ...borrador,
+      fields: [{ ...campos[1], radios: true }],
+    };
+    expect(esquemaBorrador.safeParse(radios).success).toBe(true);
+  });
+
   it("dice en qué pregunta está el fallo", () => {
     const parsed = esquemaBorrador.safeParse({
       ...borrador,
@@ -161,20 +169,20 @@ describe("esquema de un formulario guardado", () => {
 
 describe("definicionGuardada", () => {
   it("devuelve la definición cuando se sostiene", () => {
-    const leida = definicionGuardada({ type: "prueba", version: 2, ...borrador });
+    const leida = definicionGuardada({ type: "prueba", ...borrador });
     expect(leida?.fields).toHaveLength(2);
   });
 
   it("devuelve null con una fila corrupta, para poder caer al fichero", () => {
-    expect(definicionGuardada({ type: "prueba", version: 1 })).toBeNull();
+    expect(definicionGuardada({ type: "prueba" })).toBeNull();
     expect(definicionGuardada("no es un formulario")).toBeNull();
     expect(
-      definicionGuardada({ ...borrador, type: "prueba", version: 1, fields: [{}] }),
+      definicionGuardada({ ...borrador, type: "prueba", fields: [{}] }),
     ).toBeNull();
   });
 
   it("lo que sale del esquema se puede validar como cuestionario", () => {
-    const leida = definicionGuardada({ type: "prueba", version: 1, ...borrador })!;
+    const leida = definicionGuardada({ type: "prueba", ...borrador })!;
     const parsed = schemaFor(leida).safeParse({ edad: "20", color: "azul" });
     expect(parsed.success).toBe(true);
   });

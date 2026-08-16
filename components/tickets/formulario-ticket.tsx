@@ -39,7 +39,6 @@ export function FormularioTicket({ categoria }: { categoria: CategoriaTicket }) 
       type: categoria.clave,
       title: categoria.nombre,
       summary: categoria.descripcion,
-      version: 1,
       fields: categoria.campos,
     }).safeParse(bruto);
 

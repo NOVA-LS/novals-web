@@ -28,13 +28,7 @@ function refrescar(tipo: string) {
   revalidatePath(`/panel/formularios/${tipo}`);
 }
 
-/**
- * Guarda el formulario entero: nombre, resumen y preguntas.
- *
- * La versión la decide el servidor y no el panel: sube cuando las preguntas
- * cambian y se queda quieta cuando solo se retoca el texto de presentación. Es
- * lo que permite mirar una solicitud vieja y saber a qué cuestionario contestó.
- */
+/** Guarda el formulario entero: nombre, resumen y preguntas. */
 export async function guardarFormulario(
   tipo: string,
   borrador: unknown,
@@ -52,16 +46,16 @@ export async function guardarFormulario(
     return { ok: false, mensaje: primerFallo(parsed.error, campos) };
   }
 
+  // Solo para el registro de auditoría y el aviso de abajo: no cambia nada de
+  // lo que se guarda.
   const cambian =
     huellaDeCampos(parsed.data.fields as Field[]) !==
     huellaDeCampos(actual.fields);
-  const version = actual.version + (cambian ? 1 : 0);
 
   const datos = {
     title: parsed.data.title,
     summary: parsed.data.summary,
     fields: parsed.data.fields as unknown as Prisma.InputJsonValue,
-    version,
   };
 
   await db.formConfig.upsert({
@@ -75,19 +69,12 @@ export async function guardarFormulario(
     actor: admin,
     objetivo: parsed.data.title,
     url: `/panel/formularios/${tipo}`,
-    detalle: cambian
-      ? `preguntas editadas · versión ${actual.version} → ${version}`
-      : "texto editado",
+    detalle: cambian ? "preguntas editadas" : "texto editado",
   });
 
   refrescar(tipo);
 
-  return {
-    ok: true,
-    mensaje: cambian
-      ? `Guardado. Ahora es la versión ${version}.`
-      : "Guardado.",
-  };
+  return { ok: true, mensaje: "Guardado." };
 }
 
 /**
@@ -124,7 +111,6 @@ export async function crearFormulario(
       title: nombre,
       summary: "Sin descripción todavía.",
       fields: [] as unknown as Prisma.InputJsonValue,
-      version: 1,
       position: (ultima?.position ?? 0) + 1,
     },
   });
@@ -179,7 +165,6 @@ export async function duplicarFormulario(
       title: nombre,
       summary: origen.summary,
       fields: origen.fields as unknown as Prisma.InputJsonValue,
-      version: 1,
       position: (ultima?.position ?? 0) + 1,
     },
   });
@@ -251,7 +236,7 @@ export async function restaurarFormulario(
   await db.formConfig.update({
     where: { type: tipo },
     // `DbNull` y no `null`: en una columna JSON, null es un valor guardado.
-    data: { title: null, summary: null, fields: Prisma.DbNull, version: null },
+    data: { title: null, summary: null, fields: Prisma.DbNull },
   });
 
   await apuntar({

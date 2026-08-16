@@ -1,4 +1,3 @@
-import { definicionGuardada } from "./esquema";
 import type { FormDefinition } from "./types";
 
 /**
@@ -45,18 +44,23 @@ export function leerVistaBruta(tipo: string): string | null {
 
 /**
  * Lo que hubiera en el editor, si es que sigue valiendo. Devuelve null cuando no
- * hay nada o cuando lo hay no se sostiene; entonces se enseña lo ya guardado.
+ * hay nada o el texto guardado no se puede ni leer como JSON.
+ *
+ * No pasa por el esquema estricto a propósito: es lo que hay ahora mismo en el
+ * editor de esta misma pestaña, a medio escribir por definición —una pregunta
+ * nueva sin enunciado todavía, por ejemplo—. Exigirle que ya fuera válido para
+ * guardar tiraba la vista previa entera para atrás, a lo último guardado, sin
+ * decir por qué: una sola pregunta a medias dejaba todo el borrador invisible.
  */
 export function definicionDeVista(
   bruto: string | null,
   tipo: string,
-  version: number,
 ): FormDefinition | null {
   if (!bruto) return null;
 
   try {
     const borrador = JSON.parse(bruto) as BorradorVista;
-    return definicionGuardada({ ...borrador, type: tipo, version });
+    return { type: tipo, title: borrador.title, summary: borrador.summary, fields: borrador.fields };
   } catch {
     return null;
   }

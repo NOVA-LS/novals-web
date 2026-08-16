@@ -27,7 +27,6 @@ const form: FormDefinition = {
   type: "prueba",
   title: "Prueba",
   summary: "Uno de cada tipo de pregunta.",
-  version: 1,
   fields: [
     { name: "edad", kind: "number", label: "Edad", min: 14, max: 99 },
     {
@@ -65,7 +64,6 @@ const formAmpliado: FormDefinition = {
   type: "prueba_ampliada",
   title: "Prueba ampliada",
   summary: "Los tipos de campo nuevos.",
-  version: 1,
   fields: [
     { name: "intro", kind: "seccion", label: "Antes de empezar" },
     { name: "nota", kind: "texto", label: "", help: "Lee esto con calma." },

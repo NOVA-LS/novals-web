@@ -20,10 +20,12 @@ const clave = z
   .regex(CLAVE, "Empieza por una letra y usa solo minúsculas, números y _.")
   .max(40);
 
-const etiqueta = z.string().trim().min(1, "Ponle un enunciado.").max(160);
+// Sin tope de caracteres: lo escribe quien monta el formulario —admin, no
+// público— y no hay motivo para ponerle un límite a su propio texto.
+const etiqueta = z.string().trim().min(1, "Ponle un enunciado.");
 /** Para texto informativo y aviso: son un título, no una pregunta, y puede no llevar. */
-const etiquetaLibre = z.string().trim().max(160);
-const ayuda = z.string().trim().max(300).optional();
+const etiquetaLibre = z.string().trim();
+const ayuda = z.string().trim().optional();
 const entero = z.number().int().min(0).max(100000);
 
 const base = {
@@ -35,7 +37,7 @@ const base = {
 
 const opcion = z.object({
   value: clave,
-  label: z.string().trim().min(1, "La opción necesita texto.").max(80),
+  label: z.string().trim().min(1, "La opción necesita texto."),
 });
 
 /** Que el mínimo no se pase del máximo; si no, no habría respuesta válida. */
@@ -53,14 +55,14 @@ export const esquemaCampo = z
     z.object({
       ...base,
       kind: z.literal("text"),
-      placeholder: z.string().trim().max(120).optional(),
+      placeholder: z.string().trim().optional(),
       minLength: entero.optional(),
       maxLength: entero.optional(),
     }),
     z.object({
       ...base,
       kind: z.literal("textarea"),
-      placeholder: z.string().trim().max(120).optional(),
+      placeholder: z.string().trim().optional(),
       minLength: entero.optional(),
       maxLength: entero.optional(),
       rows: z.number().int().min(2).max(30).optional(),
@@ -87,6 +89,7 @@ export const esquemaCampo = z
       ...base,
       kind: z.literal("select"),
       multiple: z.boolean().optional(),
+      radios: z.boolean().optional(),
       options: z
         .array(opcion)
         .min(1, "Una lista de opciones necesita al menos una.")
@@ -120,9 +123,8 @@ export const esquemaCampo = z
 
 export const esquemaDefinicion = z.object({
   type: clave,
-  title: z.string().trim().min(1, "El formulario necesita un nombre.").max(60),
-  summary: z.string().trim().min(1, "Explica de qué va en una línea.").max(500),
-  version: z.number().int().min(1),
+  title: z.string().trim().min(1, "El formulario necesita un nombre."),
+  summary: z.string().trim().min(1, "Explica de qué va en una línea."),
   fields: z
     .array(esquemaCampo)
     .max(60, "Sesenta preguntas son demasiadas.")
@@ -141,13 +143,11 @@ export const esquemaDefinicion = z.object({
 });
 
 /**
- * Lo que se puede tocar desde el panel. La versión no entra: la sube sola el
- * servidor al ver que las preguntas cambiaron, y el tipo no se cambia nunca
+ * Lo que se puede tocar desde el panel. El tipo no entra: no se cambia nunca
  * porque es con lo que están guardadas las solicitudes.
  */
 export const esquemaBorrador = esquemaDefinicion.omit({
   type: true,
-  version: true,
 });
 
 export type BorradorFormulario = z.infer<typeof esquemaBorrador>;
@@ -181,9 +181,9 @@ export function claveDeCampo(
  * Las preguntas reducidas a un texto comparable.
  *
  * Sirve para saber si una edición cambió el cuestionario o solo el nombre del
- * formulario, que es lo que decide si sube la versión. Se ordenan las claves
- * porque el mismo campo escrito por el editor y leído del fichero trae sus
- * propiedades en otro orden, y eso no es un cambio.
+ * formulario. Se ordenan las claves porque el mismo campo escrito por el
+ * editor y leído del fichero trae sus propiedades en otro orden, y eso no es
+ * un cambio.
  */
 export function huellaDeCampos(campos: Field[]): string {
   return JSON.stringify(campos, (_clave, valor) =>

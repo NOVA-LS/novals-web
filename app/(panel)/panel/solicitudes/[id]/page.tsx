@@ -31,7 +31,6 @@ export default async function SolicitudPage({
     select: {
       id: true,
       type: true,
-      formVersion: true,
       answers: true,
       status: true,
       staffNote: true,
@@ -110,7 +109,7 @@ export default async function SolicitudPage({
         </div>
 
         {/* Cada dato con su nombre encima: seguidos y en gris no se distinguía
-            el identificador de Discord de la versión del formulario. */}
+            el identificador de Discord de la fecha de envío. */}
         <dl className="fichas">
           <div>
             <dt className="meta">Discord</dt>
@@ -119,10 +118,6 @@ export default async function SolicitudPage({
           <div>
             <dt className="meta">Enviada</dt>
             <dd>{formatearFechaHora(solicitud.createdAt)}</dd>
-          </div>
-          <div>
-            <dt className="meta">Versión del formulario</dt>
-            <dd>{solicitud.formVersion}</dd>
           </div>
           <div>
             <dt className="meta">Revisor</dt>

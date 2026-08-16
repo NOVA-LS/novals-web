@@ -66,7 +66,7 @@ export default async function PanelFormulariosPage() {
                   </p>
 
                   <span className="meta">
-                    Versión {form.version} · {form.fields.filter(esPregunta).length} preguntas ·{" "}
+                    {form.fields.filter(esPregunta).length} preguntas ·{" "}
                     {recibidas.get(form.type) ?? 0} recibidas
                   </span>
                 </div>
