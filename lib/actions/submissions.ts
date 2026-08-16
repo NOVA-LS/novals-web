@@ -120,10 +120,11 @@ export async function enviarSolicitud(
     })),
   });
 
-  await avisarUsuario(usuario.discordId, {
-    evento: "recibida",
-    formTitle: form.title,
-  });
+  await avisarUsuario(
+    usuario.discordId,
+    { evento: "recibida", formTitle: form.title },
+    solicitud.id,
+  );
 
   // Y en la campana del panel, que es donde se trabaja: el webhook se pierde
   // entre el resto del canal, y quien revisa no siempre tiene Discord delante.
@@ -191,10 +192,11 @@ export async function resolverSolicitud(
   });
 
   if (estado === "IN_REVIEW") {
-    await avisarUsuario(solicitud.user.discordId, {
-      evento: "en_revision",
-      formTitle: titulo,
-    });
+    await avisarUsuario(
+      solicitud.user.discordId,
+      { evento: "en_revision", formTitle: titulo },
+      id,
+    );
   } else {
     // El cooldown solo se anuncia en el rechazo, que es cuando importa saberlo.
     const config =
@@ -202,13 +204,17 @@ export async function resolverSolicitud(
         ? await db.formConfig.findUnique({ where: { type: solicitud.type } })
         : null;
 
-    await avisarUsuario(solicitud.user.discordId, {
-      evento: "resuelta",
-      formTitle: titulo,
-      estado,
-      nota: limpia || null,
-      cooldownDays: config?.cooldownDays ?? 7,
-    });
+    await avisarUsuario(
+      solicitud.user.discordId,
+      {
+        evento: "resuelta",
+        formTitle: titulo,
+        estado,
+        nota: limpia || null,
+        cooldownDays: config?.cooldownDays ?? 7,
+      },
+      id,
+    );
   }
 
   // El mismo aviso, dentro de la web: el privado de Discord no llega si los

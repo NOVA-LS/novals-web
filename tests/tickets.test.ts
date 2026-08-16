@@ -56,6 +56,15 @@ describe("quién ve un ticket", () => {
     expect(puedeVer(moderador, ticket({ nivel: "ADMIN" }))).toBe(false);
   });
 
+  it("el staff no atiende su propio ticket, aunque llegue a su nivel", () => {
+    const propio = ticket({ authorId: soporte.id, nivel: "SOPORTE" });
+    expect(atiende(soporte, propio)).toBe(false);
+    expect(atiende(moderador, propio)).toBe(true);
+    // Como jugador sigue siendo suyo: lo ve y escribe, solo que no lo atiende.
+    expect(puedeVer(soporte, propio)).toBe(true);
+    expect(puedeEscribir(soporte, propio)).toBe(true);
+  });
+
   it("una donación solo la ve administración", () => {
     const donacion = ticket({ nivel: "ADMIN", authorId: "u1" });
     expect(atiende(admin, donacion)).toBe(true);

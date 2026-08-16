@@ -102,16 +102,19 @@ export default async function PanelResumenPage() {
     }),
     db.formConfig.findMany(),
     // Solo los del escalón propio: la cifra tiene que cuadrar con la bandeja.
+    // Y no el suyo propio: si lo abrió como jugador, no es él quien lo atiende.
     db.ticket.count({
       where: {
         status: { not: "CERRADO" },
         nivel: { in: NIVELES.slice(0, NIVELES.indexOf(usuario.role) + 1) },
+        authorId: { not: usuario.id },
       },
     }),
     db.ticket.count({
       where: {
         status: "ABIERTO",
         nivel: { in: NIVELES.slice(0, NIVELES.indexOf(usuario.role) + 1) },
+        authorId: { not: usuario.id },
       },
     }),
     // Los que están en nuestro tejado, empezando por el más parado.
@@ -119,6 +122,7 @@ export default async function PanelResumenPage() {
       where: {
         status: { in: ["ABIERTO", "EN_CURSO"] },
         nivel: { in: NIVELES.slice(0, NIVELES.indexOf(usuario.role) + 1) },
+        authorId: { not: usuario.id },
       },
       orderBy: { lastMessageAt: "asc" },
       take: 6,

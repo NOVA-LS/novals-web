@@ -20,7 +20,8 @@ import {
   type ActorTicket,
   type TicketVisto,
 } from "@/lib/tickets/reglas";
-import { avisarAlStaff, crearAviso } from "@/lib/avisos";
+import { avisarAlStaff, avisarAVarios, crearAviso } from "@/lib/avisos";
+import { avisarUsuarioTicket, type AvisoTicket } from "@/lib/notifications";
 import { CANAL, emitirA } from "@/lib/eventos";
 import { ACCIONES, apuntar } from "@/lib/auditoria";
 import { sincronizarInsignias } from "@/lib/insignias/sincronizar";
@@ -40,6 +41,9 @@ export type ResultadoTicket =
  * Se queda solo con lo que parece un identificador —son números largos— para
  * que pegar «@fulano, 123…» no acabe buscando un usuario llamado «@fulano».
  */
+/** Meter a treinta de golpe no es un reporte, es un abuso de las notificaciones. */
+const MAX_INVITADOS_POR_VEZ = 10;
+
 function idsDeDiscord(texto: string): string[] {
   const sueltos = texto
     .split(/[,\s]+/)
@@ -47,6 +51,28 @@ function idsDeDiscord(texto: string): string[] {
     .filter((trozo) => /^\d{5,}$/.test(trozo));
 
   return [...new Set(sueltos)];
+}
+
+/**
+ * Manda el mismo aviso de ticket por privado de Discord a cada uno de estos
+ * usuarios, además del que ya se deja dentro de la web: para mantenerse al
+ * tanto sin tener que entrar, hace falta que llegue también fuera de la web.
+ */
+async function avisarTicketPorDiscord(
+  userIds: string[],
+  aviso: AvisoTicket,
+  ticketId: string,
+): Promise<void> {
+  if (userIds.length === 0) return;
+
+  const personas = await db.user.findMany({
+    where: { id: { in: userIds } },
+    select: { discordId: true },
+  });
+
+  await Promise.all(
+    personas.map((persona) => avisarUsuarioTicket(persona.discordId, aviso, ticketId)),
+  );
 }
 
 /** La definición de formulario que espera el motor de validación. */
@@ -308,27 +334,52 @@ export async function responderTicket(
   if (!interno) {
     if (comoStaff) {
       // A todo el lado del jugador: el que lo abrió y los que van con él.
-      for (const destinatario of [ticket.authorId, ...ticket.invitados]) {
-        await crearAviso({
-          userId: destinatario,
-          tipo: "TICKET",
-          titulo: `Respuesta en tu ticket #${ticket.numero}`,
-          cuerpo: texto,
-          url: `/tickets/${ticket.id}`,
-        });
-      }
+      const destinatarios = [ticket.authorId, ...ticket.invitados];
+
+      await avisarAVarios({
+        userIds: destinatarios,
+        tipo: "TICKET",
+        titulo: `Respuesta en tu ticket #${ticket.numero}`,
+        cuerpo: texto,
+        url: `/tickets/${ticket.id}`,
+      });
+
+      await avisarTicketPorDiscord(
+        destinatarios,
+        {
+          evento: "mensaje",
+          numero: ticket.numero,
+          asunto: ticket.subject,
+          autor: usuario.username,
+          texto,
+        },
+        ticket.id,
+      );
     } else {
       // Y si escribe uno de ellos, se avisa a los demás además de al staff.
-      for (const destinatario of [ticket.authorId, ...ticket.invitados]) {
-        if (destinatario === actor.id) continue;
-        await crearAviso({
-          userId: destinatario,
-          tipo: "TICKET",
-          titulo: `${usuario.username} escribió en el ticket #${ticket.numero}`,
-          cuerpo: texto,
-          url: `/tickets/${ticket.id}`,
-        });
-      }
+      const destinatarios = [ticket.authorId, ...ticket.invitados].filter(
+        (destinatario) => destinatario !== actor.id,
+      );
+
+      await avisarAVarios({
+        userIds: destinatarios,
+        tipo: "TICKET",
+        titulo: `${usuario.username} escribió en el ticket #${ticket.numero}`,
+        cuerpo: texto,
+        url: `/tickets/${ticket.id}`,
+      });
+
+      await avisarTicketPorDiscord(
+        destinatarios,
+        {
+          evento: "mensaje",
+          numero: ticket.numero,
+          asunto: ticket.subject,
+          autor: usuario.username,
+          texto,
+        },
+        ticket.id,
+      );
 
       await avisarAlStaff({
         tipo: "TICKET",
@@ -379,23 +430,35 @@ export async function cerrarTicket(id: string): Promise<ResultadoTicket> {
   // autor se le pide además que puntúe: es el único momento en que la pregunta
   // tiene sentido, y quien la contesta es quien vino a que le atendieran.
   const loCerroElStaff = atiende(actor, ticket);
+  const pideValoracion = ticket.authorId !== actor.id && loCerroElStaff;
+  const generales = [ticket.authorId, ...ticket.invitados].filter(
+    (destinatario) =>
+      destinatario !== actor.id && !(pideValoracion && destinatario === ticket.authorId),
+  );
 
-  for (const destinatario of [ticket.authorId, ...ticket.invitados]) {
-    if (destinatario === actor.id) continue;
+  await avisarAVarios({
+    userIds: generales,
+    tipo: "TICKET",
+    titulo: `El ticket #${ticket.numero} se ha cerrado`,
+    cuerpo: "Si te queda algo por resolver, abre otro.",
+    url: `/tickets/${id}`,
+  });
 
-    const esSuAutor = destinatario === ticket.authorId;
-    const pideValoracion = esSuAutor && loCerroElStaff;
+  // Por Discord se avisa a todo el lado del jugador por igual, valoración
+  // incluida: la pantalla de puntuar solo tiene sentido dentro de la web.
+  await avisarTicketPorDiscord(
+    [ticket.authorId, ...ticket.invitados].filter((destinatario) => destinatario !== actor.id),
+    { evento: "cerrado", numero: ticket.numero, asunto: ticket.subject },
+    id,
+  );
 
+  if (pideValoracion) {
     await crearAviso({
-      userId: destinatario,
+      userId: ticket.authorId,
       tipo: "TICKET",
-      titulo: pideValoracion
-        ? `¿Qué tal te atendieron en el ticket #${ticket.numero}?`
-        : `El ticket #${ticket.numero} se ha cerrado`,
-      cuerpo: pideValoracion
-        ? "Puntúalo del 0 al 5. Si quieres, cuenta por qué."
-        : "Si te queda algo por resolver, abre otro.",
-      url: pideValoracion ? `/tickets/${id}#valoracion` : `/tickets/${id}`,
+      titulo: `¿Qué tal te atendieron en el ticket #${ticket.numero}?`,
+      cuerpo: "Puntúalo del 0 al 5. Si quieres, cuenta por qué.",
+      url: `/tickets/${id}#valoracion`,
     });
   }
 
@@ -497,14 +560,18 @@ export async function reabrirTicket(id: string): Promise<ResultadoTicket> {
     detalle: "reabierto",
   });
 
-  for (const destinatario of [ticket.authorId, ...ticket.invitados]) {
-    await crearAviso({
-      userId: destinatario,
-      tipo: "TICKET",
-      titulo: `Tu ticket #${ticket.numero} se ha reabierto`,
-      url: `/tickets/${id}`,
-    });
-  }
+  await avisarAVarios({
+    userIds: [ticket.authorId, ...ticket.invitados],
+    tipo: "TICKET",
+    titulo: `Tu ticket #${ticket.numero} se ha reabierto`,
+    url: `/tickets/${id}`,
+  });
+
+  await avisarTicketPorDiscord(
+    [ticket.authorId, ...ticket.invitados],
+    { evento: "reabierto", numero: ticket.numero, asunto: ticket.subject },
+    id,
+  );
 
   revalidatePath(`/tickets/${id}`);
   revalidatePath(`/panel/tickets/${id}`);
@@ -525,7 +592,7 @@ export async function invitarAlTicket(
   id: string,
   identificadores: string,
 ): Promise<ResultadoTicket> {
-  const { actor, ticket } = await cargar(id);
+  const { usuario, actor, ticket } = await cargar(id);
   if (!ticket || !actor) return { ok: false, mensaje: "Ese ticket ya no existe." };
 
   if (!puedeInvitar(actor, ticket)) {
@@ -535,6 +602,9 @@ export async function invitarAlTicket(
   const pedidos = idsDeDiscord(identificadores);
   if (pedidos.length === 0) {
     return { ok: false, mensaje: "Pega uno o más identificadores de Discord." };
+  }
+  if (pedidos.length > MAX_INVITADOS_POR_VEZ) {
+    return { ok: false, mensaje: `No se puede meter a más de ${MAX_INVITADOS_POR_VEZ} de una vez.` };
   }
 
   const encontrados = await db.user.findMany({
@@ -571,6 +641,17 @@ export async function invitarAlTicket(
       url: `/tickets/${id}`,
     });
   }
+
+  await avisarTicketPorDiscord(
+    nuevos,
+    {
+      evento: "invitado",
+      numero: ticket.numero,
+      asunto: ticket.subject,
+      quien: usuario?.username ?? "Alguien",
+    },
+    id,
+  );
 
   revalidatePath(`/tickets/${id}`);
   revalidatePath(`/panel/tickets/${id}`);

@@ -168,8 +168,9 @@ export default async function PerfilPage() {
               return (
                 <li
                   key={solicitud.id}
+                  id={`solicitud-${solicitud.id}`}
                   data-estado={solicitud.status}
-                  className="tile solicitud grid gap-[var(--space-sm)]"
+                  className="tile solicitud grid scroll-mt-24 gap-[var(--space-sm)]"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-[var(--space-sm)]">
                     <h3 className="display text-(length:--text-md)">

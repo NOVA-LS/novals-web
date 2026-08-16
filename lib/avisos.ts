@@ -133,6 +133,43 @@ export async function avisarAlStaff(aviso: {
   }
 }
 
+/**
+ * El mismo aviso para varios destinatarios concretos, de una vez.
+ *
+ * Se usa cuando el contenido es idéntico para todos —una respuesta de ticket
+ * que se avisa al autor y a sus invitados a la par—: un `createMany` y un solo
+ * `emitirA` en vez de una escritura y un evento por persona, que además tragaba
+ * en silencio el fallo de una sin que se notara en las demás.
+ */
+export async function avisarAVarios(aviso: {
+  userIds: string[];
+  tipo: TipoAviso;
+  titulo: string;
+  cuerpo?: string | null;
+  url: string;
+}): Promise<void> {
+  const destinatarios = [...new Set(aviso.userIds)];
+  if (destinatarios.length === 0) return;
+
+  try {
+    const cuerpo = adelanto(aviso.cuerpo);
+
+    await db.notification.createMany({
+      data: destinatarios.map((userId) => ({
+        userId,
+        kind: aviso.tipo,
+        title: aviso.titulo,
+        body: cuerpo,
+        url: aviso.url,
+      })),
+    });
+
+    emitirA(destinatarios.map((userId) => CANAL.usuario(userId)));
+  } catch (error) {
+    console.error("No se pudo avisar a varios", error);
+  }
+}
+
 /** Lo que necesita la campana: cuántos sin leer y los últimos. */
 export async function resumenAvisos(userId: string) {
   const [sinLeer, ultimos] = await Promise.all([

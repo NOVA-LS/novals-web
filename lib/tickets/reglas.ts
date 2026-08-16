@@ -31,9 +31,18 @@ export type TicketVisto = {
   valoracion?: number | null;
 };
 
-/** Llega al escalón que atiende el ticket. */
+/**
+ * Llega al escalón que atiende el ticket, y no es quien lo abrió.
+ *
+ * Un miembro del staff puede escribir un ticket como jugador —tiene un
+ * problema en el juego igual que cualquiera—, pero eso no le da poder de
+ * staff sobre su propio caso: no debe poder asignárselo, moverlo de escalón,
+ * invitar a nadie ni dejar notas internas en algo que en realidad le
+ * concierne a él. Ese ticket lo lleva otro del staff, no él mismo.
+ */
 export function atiende(actor: ActorTicket, ticket: TicketVisto): boolean {
   if (!actor) return false;
+  if (actor.id === ticket.authorId) return false;
   return ALTURA[actor.role] >= ALTURA[ticket.nivel];
 }
 

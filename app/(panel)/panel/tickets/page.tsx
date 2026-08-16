@@ -56,9 +56,13 @@ export default async function PanelTicketsPage({
   const { vista, categoria, q, p } = await searchParams;
 
   // Solo se ve lo que llega al escalón propio: un iniciador no debe enterarse
-  // de que existe un ticket de donaciones.
+  // de que existe un ticket de donaciones. Y no el suyo propio: si abrió uno
+  // como jugador, no es él quien lo atiende.
   const alcanzo = NIVELES.slice(0, NIVELES.indexOf(staff.role) + 1);
-  const alcance: Prisma.TicketWhereInput = { nivel: { in: alcanzo } };
+  const alcance: Prisma.TicketWhereInput = {
+    nivel: { in: alcanzo },
+    authorId: { not: staff.id },
+  };
 
   const laVista = (VISTAS.find((opcion) => opcion.clave === vista)?.clave ??
     "") as ClaveVista;
