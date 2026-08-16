@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { enviarSolicitud } from "@/lib/actions/submissions";
-import { schemaFor, type FormDefinition } from "@/lib/forms";
+import { answersFromFormData, schemaFor, type FormDefinition } from "@/lib/forms";
 import { Boton } from "@/components/ui/button";
 import { CampoFormulario } from "@/components/ui/campo";
 
@@ -75,29 +75,15 @@ export function FormRenderer({ form }: { form: FormDefinition }) {
     const formulario = evento.currentTarget;
     const datos = new FormData(formulario);
 
-    // Misma validación que en el servidor: sale del mismo esquema.
-    const bruto: Record<string, unknown> = {};
-    for (const campo of form.fields) {
-      if (campo.kind === "seccion" || campo.kind === "texto" || campo.kind === "aviso") continue;
-
-      if (campo.kind === "file") {
-        // La URL real la resuelve el servidor al subir el archivo; aquí solo
-        // hace falta saber si hay uno elegido, para el aviso de obligatorio.
+    // Misma validación que en el servidor: sale del mismo esquema. La URL real
+    // de un archivo la resuelve el servidor al subirlo; aquí solo hace falta
+    // saber si hay uno elegido, para el aviso de obligatorio.
+    const bruto = answersFromFormData(form, datos, {
+      archivoElegido: (campo) => {
         const elegido = datos.get(campo.name);
-        bruto[campo.name] = elegido instanceof File && elegido.size > 0 ? "elegido" : "";
-        continue;
-      }
-
-      if (campo.kind === "select" && campo.multiple) {
-        bruto[campo.name] = datos.getAll(campo.name);
-        continue;
-      }
-
-      bruto[campo.name] =
-        campo.kind === "checkbox"
-          ? datos.get(campo.name) !== null
-          : (datos.get(campo.name) ?? "");
-    }
+        return elegido instanceof File && elegido.size > 0 ? "elegido" : "";
+      },
+    });
 
     const parsed = schemaFor(form).safeParse(bruto);
     if (!parsed.success) {

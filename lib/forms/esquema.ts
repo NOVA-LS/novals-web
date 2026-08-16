@@ -197,6 +197,18 @@ export function huellaDeCampos(campos: Field[]): string {
   );
 }
 
+/**
+ * Huella del formulario entero —título, resumen y preguntas—, para saber si lo
+ * que hay en el editor sigue siendo lo último guardado.
+ *
+ * Sirve para detectar que dos admins han editado el mismo formulario a la vez:
+ * quien guarda segundo compara su huella de partida contra la que hay ahora en
+ * la base, y si no coinciden es que alguien más guardó por medio.
+ */
+export function huellaFormulario(def: { title: string; summary: string; fields: Field[] }): string {
+  return JSON.stringify({ title: def.title, summary: def.summary, campos: huellaDeCampos(def.fields) });
+}
+
 /** Primer error legible de un intento fallido, con la pregunta a la que va. */
 export function primerFallo(error: z.ZodError, campos?: Field[]): string {
   const fallo = error.issues[0];

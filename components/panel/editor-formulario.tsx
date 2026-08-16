@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from "lucide-react";
 import { guardarFormulario } from "@/lib/actions/formularios";
-import { claveDeCampo, huellaDeCampos } from "@/lib/forms/esquema";
+import { claveDeCampo, huellaDeCampos, huellaFormulario } from "@/lib/forms/esquema";
 import { guardarVistaBruta, leerVistaBruta } from "@/lib/forms/vista-previa";
 import { esPregunta, type Field, type FormDefinition } from "@/lib/forms";
 import { Boton } from "@/components/ui/button";
@@ -127,10 +127,18 @@ function nuevoCampo(ocupadas: string[]): Field {
 export function EditorFormulario({
   form,
   recibidas,
+  clavesHistoricas,
 }: {
   form: FormDefinition;
   /** Solicitudes ya guardadas con este cuestionario. */
   recibidas: number;
+  /**
+   * Claves que alguna vez han quedado guardadas en una respuesta de este
+   * formulario, aunque la pregunta que las usaba ya no exista. Una pregunta
+   * nueva no puede recibir ninguna de estas: si lo hiciera, las respuestas
+   * viejas guardadas con esa clave se leerían como si fueran suyas.
+   */
+  clavesHistoricas: string[];
 }) {
   const router = useRouter();
   const [titulo, setTitulo] = useState(form.title);
@@ -230,12 +238,12 @@ export function EditorFormulario({
         // Mientras la pregunta no se haya guardado nunca, su clave sigue al
         // enunciado. Después ya no: hay respuestas que la usan.
         const name = linea.nuevo
-          ? claveDeCampo(
-              label,
-              previas
+          ? claveDeCampo(label, [
+              ...previas
                 .filter((otra) => otra.clave !== clave)
                 .map((otra) => otra.campo.name),
-            )
+              ...clavesHistoricas,
+            ])
           : linea.campo.name;
 
         return { ...linea, campo: { ...linea.campo, label, name } as Field };
@@ -256,7 +264,10 @@ export function EditorFormulario({
 
   function añadir() {
     const clave = crypto.randomUUID();
-    const campo = nuevoCampo(lineas.map((linea) => linea.campo.name));
+    const campo = nuevoCampo([
+      ...lineas.map((linea) => linea.campo.name),
+      ...clavesHistoricas,
+    ]);
     setLineas([...lineas, { clave, nuevo: true, campo }]);
     setAviso(null);
   }
@@ -268,7 +279,7 @@ export function EditorFormulario({
 
   function duplicar(indice: number) {
     const original = lineas[indice];
-    const ocupadas = lineas.map((linea) => linea.campo.name);
+    const ocupadas = [...lineas.map((linea) => linea.campo.name), ...clavesHistoricas];
     const nombre = claveDeCampo(original.campo.label || "pregunta", ocupadas);
     const copia = { ...structuredClone(original.campo), name: nombre } as Field;
 
@@ -282,11 +293,11 @@ export function EditorFormulario({
   function guardar() {
     setAviso(null);
     empezar(async () => {
-      const resultado = await guardarFormulario(form.type, {
-        title: titulo,
-        summary: resumen,
-        fields: campos,
-      });
+      const resultado = await guardarFormulario(
+        form.type,
+        { title: titulo, summary: resumen, fields: campos },
+        huellaFormulario(form),
+      );
 
       if (resultado.ok) {
         // Ya están guardadas: sus claves quedan congeladas desde ahora.

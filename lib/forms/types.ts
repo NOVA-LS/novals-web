@@ -160,18 +160,28 @@ export function schemaFor(def: FormDefinition) {
   return z.object(shape);
 }
 
-/** Convierte el FormData del navegador al objeto que espera el esquema. */
-export function answersFromFormData(def: FormDefinition, data: FormData) {
+/**
+ * Convierte el FormData del navegador al objeto que espera el esquema.
+ *
+ * El archivo lo resuelve normalmente quien llama a esta función: hace falta
+ * subirlo antes de tener su URL, así que por defecto un campo "file" se deja
+ * fuera. La validación de cliente no sube nada —solo quiere saber si hay uno
+ * elegido, para el aviso de obligatorio—, así que pasa `archivoElegido` y
+ * recibe ese aviso sin tener que repetir el resto de esta función a mano.
+ */
+export function answersFromFormData(
+  def: FormDefinition,
+  data: FormData,
+  opciones?: { archivoElegido?: (field: Extract<Field, { kind: "file" }>) => unknown },
+) {
   const raw: Record<string, unknown> = {};
   for (const field of def.fields) {
-    // Sección, texto y aviso no preguntan nada; el archivo lo resuelve quien
-    // llama a esta función, porque hace falta subirlo antes de tener su URL.
-    if (
-      field.kind === "seccion" ||
-      field.kind === "texto" ||
-      field.kind === "aviso" ||
-      field.kind === "file"
-    ) {
+    if (field.kind === "seccion" || field.kind === "texto" || field.kind === "aviso") {
+      continue;
+    }
+
+    if (field.kind === "file") {
+      if (opciones?.archivoElegido) raw[field.name] = opciones.archivoElegido(field);
       continue;
     }
 

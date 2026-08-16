@@ -33,27 +33,23 @@ export async function TarjetasPostulacion({
     currentUser(),
   ]);
 
-  // La última de cada tipo: es la que decide si se puede volver a entrar. Se
-  // pide una por formulario en vez de traerse el historial entero y quedarse con
-  // la primera de cada uno: son cuatro consultas de una fila, no una de mil.
+  // La última de cada tipo: es la que decide si se puede volver a entrar. Una
+  // sola consulta con todas las suyas, más recientes primero, y nos quedamos
+  // con la primera que aparece de cada tipo: es tan pocas filas por usuario
+  // que no hace falta una por formulario.
   const propias = usuario
-    ? await Promise.all(
-        formularios.map((form) =>
-          db.submission.findFirst({
-            where: { userId: usuario.id, type: form.type },
-            orderBy: { createdAt: "desc" },
-            select: { type: true, status: true, resolvedAt: true },
-          }),
-        ),
-      )
+    ? await db.submission.findMany({
+        where: { userId: usuario.id, type: { in: formularios.map((form) => form.type) } },
+        orderBy: { createdAt: "desc" },
+        select: { type: true, status: true, resolvedAt: true },
+      })
     : [];
 
   const porTipo = new Map(configs.map((config) => [config.type, config]));
-  const ultimaPorTipo = new Map(
-    propias
-      .filter((solicitud) => solicitud !== null)
-      .map((solicitud) => [solicitud.type, solicitud]),
-  );
+  const ultimaPorTipo = new Map<string, (typeof propias)[number]>();
+  for (const solicitud of propias) {
+    if (!ultimaPorTipo.has(solicitud.type)) ultimaPorTipo.set(solicitud.type, solicitud);
+  }
 
   // Puede no haber ninguno: se montan desde el panel y la web no trae ninguno
   // puesto. Sin esto, aquí quedaría un hueco sin explicación.

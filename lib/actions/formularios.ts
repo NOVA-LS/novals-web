@@ -10,6 +10,7 @@ import {
   claveDeCampo,
   esquemaBorrador,
   huellaDeCampos,
+  huellaFormulario,
   primerFallo,
 } from "@/lib/forms/esquema";
 import { traerForm, traerFormularios } from "@/lib/forms/registro";
@@ -32,11 +33,24 @@ function refrescar(tipo: string) {
 export async function guardarFormulario(
   tipo: string,
   borrador: unknown,
+  /**
+   * Huella del formulario tal como lo vio el editor al cargar o al último
+   * guardado con éxito. Si ya no coincide con lo que hay en la base, alguien
+   * más ha guardado por medio y este guardado se rechaza en vez de pisarlo.
+   */
+  huellaBase?: string,
 ): Promise<ResultadoFormulario> {
   const admin = await requireUser("ADMIN");
 
   const actual = await traerForm(tipo);
   if (!actual) return { ok: false, mensaje: "Ese formulario no existe." };
+
+  if (huellaBase !== undefined && huellaBase !== huellaFormulario(actual)) {
+    return {
+      ok: false,
+      mensaje: "Alguien más ha editado este formulario mientras tanto. Recarga la página.",
+    };
+  }
 
   const parsed = esquemaBorrador.safeParse(borrador);
   if (!parsed.success) {
@@ -99,20 +113,24 @@ export async function crearFormulario(
     existentes.map((form) => form.type),
   );
 
-  const ultima = await db.formConfig.findFirst({
-    orderBy: { position: "desc" },
-    select: { position: true },
-  });
+  // find+create en una sola transacción: sin esto, dos formularios creados a
+  // la vez pueden leer la misma última posición y acabar compartiéndola.
+  await db.$transaction(async (tx) => {
+    const ultima = await tx.formConfig.findFirst({
+      orderBy: { position: "desc" },
+      select: { position: true },
+    });
 
-  await db.formConfig.create({
-    data: {
-      type: clave,
-      open: false,
-      title: nombre,
-      summary: "Sin descripción todavía.",
-      fields: [] as unknown as Prisma.InputJsonValue,
-      position: (ultima?.position ?? 0) + 1,
-    },
+    await tx.formConfig.create({
+      data: {
+        type: clave,
+        open: false,
+        title: nombre,
+        summary: "Sin descripción todavía.",
+        fields: [] as unknown as Prisma.InputJsonValue,
+        position: (ultima?.position ?? 0) + 1,
+      },
+    });
   });
 
   await apuntar({
@@ -153,20 +171,24 @@ export async function duplicarFormulario(
     existentes.map((form) => form.type),
   );
 
-  const ultima = await db.formConfig.findFirst({
-    orderBy: { position: "desc" },
-    select: { position: true },
-  });
+  // find+create en una sola transacción: sin esto, dos formularios creados a
+  // la vez pueden leer la misma última posición y acabar compartiéndola.
+  await db.$transaction(async (tx) => {
+    const ultima = await tx.formConfig.findFirst({
+      orderBy: { position: "desc" },
+      select: { position: true },
+    });
 
-  await db.formConfig.create({
-    data: {
-      type: clave,
-      open: false,
-      title: nombre,
-      summary: origen.summary,
-      fields: origen.fields as unknown as Prisma.InputJsonValue,
-      position: (ultima?.position ?? 0) + 1,
-    },
+    await tx.formConfig.create({
+      data: {
+        type: clave,
+        open: false,
+        title: nombre,
+        summary: origen.summary,
+        fields: origen.fields as unknown as Prisma.InputJsonValue,
+        position: (ultima?.position ?? 0) + 1,
+      },
+    });
   });
 
   await apuntar({

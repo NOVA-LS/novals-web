@@ -38,7 +38,7 @@ export default async function EditarFormularioPage({
   const form = await traerForm(tipo);
   if (!form) notFound();
 
-  const [config, recibidas] = await Promise.all([
+  const [config, recibidas, respuestas] = await Promise.all([
     db.formConfig.findUnique({
       where: { type: tipo },
       select: {
@@ -50,7 +50,21 @@ export default async function EditarFormularioPage({
       },
     }),
     db.submission.count({ where: { type: tipo } }),
+    db.submission.findMany({ where: { type: tipo }, select: { answers: true } }),
   ]);
+
+  // Claves que alguna vez se han guardado en una respuesta, aunque la pregunta
+  // ya no exista: una pregunta nueva no puede heredar ninguna de estas, o sus
+  // respuestas viejas se leerían como si fueran suyas.
+  const clavesHistoricas = [
+    ...new Set(
+      respuestas.flatMap((respuesta) =>
+        respuesta.answers && typeof respuesta.answers === "object"
+          ? Object.keys(respuesta.answers as Record<string, unknown>)
+          : [],
+      ),
+    ),
+  ];
 
   const abierto = config?.open !== false;
   const cooldown = config?.cooldownDays ?? 7;
@@ -179,7 +193,7 @@ export default async function EditarFormularioPage({
         </div>
       </section>
 
-      <EditorFormulario form={form} recibidas={recibidas} />
+      <EditorFormulario form={form} recibidas={recibidas} clavesHistoricas={clavesHistoricas} />
 
       {deFabrica || recibidas === 0 ? (
         <section className="tile grid gap-[var(--space-sm)]">

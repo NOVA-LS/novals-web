@@ -64,6 +64,56 @@ export function CampoFormulario({
     );
   }
 
+  // Una casilla o un grupo de radios no es una sola pregunta con un solo id
+  // al que apuntar: es varias, así que va en un fieldset/legend en vez de un
+  // label con htmlFor apuntando a un id que no existe.
+  if (campo.kind === "select" && (campo.multiple || campo.radios)) {
+    return (
+      <fieldset
+        className="field"
+        aria-describedby={comunes["aria-describedby"]}
+        aria-invalid={error ? true : undefined}
+      >
+        <legend className="field__label">
+          {campo.label}
+          {requerido ? null : (
+            <span className="text-[var(--color-neutral)]"> · opcional</span>
+          )}
+        </legend>
+
+        {campo.help ? (
+          <p id={idAyuda} className="field__help">
+            {campo.help}
+          </p>
+        ) : null}
+
+        <div className="grid gap-[var(--space-2xs)]">
+          {campo.options.map((opcion) => (
+            <label
+              key={opcion.value}
+              className="flex items-center gap-[var(--space-xs)] text-sm text-[var(--color-muted)]"
+            >
+              <input
+                type={campo.multiple ? "checkbox" : "radio"}
+                name={campo.name}
+                value={opcion.value}
+                disabled={deshabilitado}
+                className="size-4 accent-[var(--color-ink)]"
+              />
+              {opcion.label}
+            </label>
+          ))}
+        </div>
+
+        {error ? (
+          <p id={idError} className="field__error" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </fieldset>
+    );
+  }
+
   return (
     <div className="field">
       {campo.kind === "checkbox" ? null : (
@@ -83,42 +133,6 @@ export function CampoFormulario({
 
       {campo.kind === "textarea" ? (
         <textarea {...comunes} rows={campo.rows ?? 5} placeholder={campo.placeholder} />
-      ) : campo.kind === "select" && campo.multiple ? (
-        <div className="grid gap-[var(--space-2xs)]">
-          {campo.options.map((opcion) => (
-            <label
-              key={opcion.value}
-              className="flex items-center gap-[var(--space-xs)] text-sm text-[var(--color-muted)]"
-            >
-              <input
-                type="checkbox"
-                name={campo.name}
-                value={opcion.value}
-                disabled={deshabilitado}
-                className="size-4 accent-[var(--color-ink)]"
-              />
-              {opcion.label}
-            </label>
-          ))}
-        </div>
-      ) : campo.kind === "select" && campo.radios ? (
-        <div className="grid gap-[var(--space-2xs)]">
-          {campo.options.map((opcion) => (
-            <label
-              key={opcion.value}
-              className="flex items-center gap-[var(--space-xs)] text-sm text-[var(--color-muted)]"
-            >
-              <input
-                type="radio"
-                name={campo.name}
-                value={opcion.value}
-                disabled={deshabilitado}
-                className="size-4 accent-[var(--color-ink)]"
-              />
-              {opcion.label}
-            </label>
-          ))}
-        </div>
       ) : campo.kind === "select" ? (
         <select {...comunes} defaultValue="">
           <option value="" disabled>
@@ -138,7 +152,7 @@ export function CampoFormulario({
             name={campo.name}
             disabled={deshabilitado}
             aria-invalid={error ? true : undefined}
-            aria-describedby={error ? idError : undefined}
+            aria-describedby={comunes["aria-describedby"]}
             className="mt-1 size-4 accent-[var(--color-ink)]"
           />
           <span>{campo.label}</span>
