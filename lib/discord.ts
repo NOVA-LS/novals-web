@@ -10,6 +10,51 @@ const API = "https://discord.com/api/v10";
  */
 const SIN_PERMISO_PARA_ESCRIBIR = new Set([50007, 50278]);
 
+/** Cuántas veces se reintenta un 429 antes de rendirse. */
+const REINTENTOS_429 = 3;
+
+/**
+ * `fetch` con reintento cuando Discord responde 429.
+ *
+ * Sin esto, un repaso masivo (sincronizar a todo el mundo, por ejemplo) se
+ * pone a fallar en cadena en cuanto se agota el límite: cada llamada de ahí en
+ * adelante recibe el mismo 429 y se trata como cualquier otro error. Discord
+ * dice cuánto esperar en `retry_after`; se espera eso —con un techo, por si
+ * viene disparatado— y se reintenta.
+ */
+async function fetchConReintento(
+  url: string,
+  /** Sin `signal`: cada intento se cronometra aparte, o la espera entre
+   * reintentos se comería el mismo plazo de 5s que el primero. */
+  init: Omit<RequestInit, "signal">,
+  intentos = REINTENTOS_429,
+): Promise<Response> {
+  const respuesta = await fetch(url, { ...init, signal: AbortSignal.timeout(5000) });
+  if (respuesta.status !== 429 || intentos <= 0) return respuesta;
+
+  const esperaMs = await esperaTrasLimite(respuesta);
+  await new Promise((resuelve) => setTimeout(resuelve, esperaMs));
+  return fetchConReintento(url, init, intentos - 1);
+}
+
+async function esperaTrasLimite(respuesta: Response): Promise<number> {
+  const TECHO_MS = 10_000;
+
+  try {
+    const cuerpo = (await respuesta.clone().json()) as { retry_after?: number };
+    if (typeof cuerpo.retry_after === "number") {
+      return Math.min(cuerpo.retry_after * 1000, TECHO_MS);
+    }
+  } catch {
+    // Discord no siempre manda cuerpo; se cae a la cabecera de abajo.
+  }
+
+  const cabecera = Number(respuesta.headers.get("Retry-After"));
+  return Number.isFinite(cabecera) && cabecera > 0
+    ? Math.min(cabecera * 1000, TECHO_MS)
+    : 1000;
+}
+
 /**
  * Avisa al canal de staff. Nunca lanza: un webhook caído no debe tumbar el
  * envío de una solicitud, así que el fallo solo se registra.
@@ -19,13 +64,12 @@ export async function notifyStaff(embed: Embed): Promise<void> {
   if (!url) return;
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchConReintento(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         embeds: [{ timestamp: new Date().toISOString(), ...embed }],
       }),
-      signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {
@@ -65,11 +109,10 @@ export async function enviarDM(
   };
 
   try {
-    const canal = await fetch(`${API}/users/@me/channels`, {
+    const canal = await fetchConReintento(`${API}/users/@me/channels`, {
       method: "POST",
       headers: cabeceras,
       body: JSON.stringify({ recipient_id: discordId }),
-      signal: AbortSignal.timeout(5000),
     });
 
     if (!canal.ok) {
@@ -78,13 +121,12 @@ export async function enviarDM(
 
     const { id } = (await canal.json()) as { id: string };
 
-    const mensaje = await fetch(`${API}/channels/${id}/messages`, {
+    const mensaje = await fetchConReintento(`${API}/channels/${id}/messages`, {
       method: "POST",
       headers: cabeceras,
       body: JSON.stringify({
         embeds: [{ timestamp: new Date().toISOString(), ...embed }],
       }),
-      signal: AbortSignal.timeout(5000),
     });
 
     if (!mensaje.ok) {
@@ -148,9 +190,9 @@ export async function miembroDeGuild(
   if (!token || !servidor) return { estado: "desconocido" };
 
   try {
-    const respuesta = await fetch(
+    const respuesta = await fetchConReintento(
       `${API}/guilds/${servidor}/members/${discordId}`,
-      { headers: cabeceras(token), signal: AbortSignal.timeout(5000) },
+      { headers: cabeceras(token) },
     );
 
     // 404 es lo normal cuando alguien entró a la web pero se fue del Discord.
@@ -186,12 +228,11 @@ export async function cambiarRolDiscord(
   if (!token || !servidor) return false;
 
   try {
-    const respuesta = await fetch(
+    const respuesta = await fetchConReintento(
       `${API}/guilds/${servidor}/members/${discordId}/roles/${roleId}`,
       {
         method: accion === "poner" ? "PUT" : "DELETE",
         headers: cabeceras(token),
-        signal: AbortSignal.timeout(5000),
       },
     );
 

@@ -12,6 +12,7 @@ import {
 import { sincronizarInsignias } from "@/lib/insignias/sincronizar";
 import { sincronizarSiInvitado } from "@/lib/invitaciones";
 import { CANAL, emitirA } from "@/lib/eventos";
+import { enLotes } from "@/lib/concurrencia";
 import type { Role, StaffTag } from "@/generated/prisma/enums";
 
 /**
@@ -164,6 +165,9 @@ function mismosEquipos(a: StaffTag[], b: StaffTag[]) {
   return b.every((equipo) => suyos.has(equipo));
 }
 
+/** Cuántos a la vez en un repaso masivo: ni todos juntos ni uno a uno. */
+const LOTE = 5;
+
 /** Repasa a todo el mundo contra Discord. Devuelve a cuántos les cambió algo. */
 export async function traerDeDiscordATodos(): Promise<number> {
   const mapa = leerMapa();
@@ -171,12 +175,8 @@ export async function traerDeDiscordATodos(): Promise<number> {
 
   const usuarios = await db.user.findMany({ select: { id: true } });
 
-  let cambiados = 0;
-  for (const usuario of usuarios) {
-    if (await traerDeDiscord(usuario.id)) cambiados += 1;
-  }
-
-  return cambiados;
+  const cambios = await enLotes(usuarios, LOTE, (usuario) => traerDeDiscord(usuario.id));
+  return cambios.filter(Boolean).length;
 }
 
 /** Como `traerDeDiscord`, pero buscando por identificador de Discord. */

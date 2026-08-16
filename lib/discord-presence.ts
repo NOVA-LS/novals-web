@@ -157,6 +157,21 @@ function abrir(conexion: Conexion, token: string) {
 const INTENT_MIEMBROS = 1 << 1;
 
 /**
+ * Cuánto se espera tras el último evento de una persona antes de ir a
+ * preguntarle a Discord.
+ *
+ * El staff no cambia un rol solo: una tanda de ascensos dispara varios
+ * `GUILD_MEMBER_UPDATE` casi a la vez para la misma gente. Sin agruparlos,
+ * cada uno abre su propia consulta HTTP —al mismo endpoint, que es de los que
+ * más aprieta el límite de Discord— cuando una sola, después de la última,
+ * ya deja a todos al día.
+ */
+const ESPERA_DEBOUNCE_MS = 2500;
+
+/** Un aviso pendiente de atender, por identificador de Discord. */
+const pendientes = new Map<string, ReturnType<typeof setTimeout>>();
+
+/**
  * Reparte los eventos que sí nos interesan.
  *
  * Nunca espera al resultado ni deja subir un fallo: el gateway tiene que seguir
@@ -177,13 +192,23 @@ function atender(paquete: { t?: string; d?: unknown }) {
   const discordId = datos.user?.id;
   if (!discordId) return;
 
-  // La importación va aquí dentro para no arrastrar la base de datos hasta este
-  // módulo, que se carga al arrancar el servidor.
-  void import("@/lib/discord/sincronizar")
-    .then(({ traerDeDiscordPorDiscordId }) => traerDeDiscordPorDiscordId(discordId))
-    .catch((error) => {
-      console.error("No se pudo atender un cambio de roles de Discord", error);
-    });
+  const previo = pendientes.get(discordId);
+  if (previo) clearTimeout(previo);
+
+  pendientes.set(
+    discordId,
+    setTimeout(() => {
+      pendientes.delete(discordId);
+
+      // La importación va aquí dentro para no arrastrar la base de datos hasta
+      // este módulo, que se carga al arrancar el servidor.
+      void import("@/lib/discord/sincronizar")
+        .then(({ traerDeDiscordPorDiscordId }) => traerDeDiscordPorDiscordId(discordId))
+        .catch((error) => {
+          console.error("No se pudo atender un cambio de roles de Discord", error);
+        });
+    }, ESPERA_DEBOUNCE_MS),
+  );
 }
 
 /**
