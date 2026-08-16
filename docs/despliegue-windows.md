@@ -4,15 +4,16 @@ Para Windows Server 2022 o 2025.
 
 ## La vía corta
 
-`deploy\windows\instalar.ps1` hace del paso 1 al 10 solo. En PowerShell **como
+`deploy\windows\desplegar.ps1` hace del paso 1 al 10 solo. En PowerShell **como
 Administrador**, desde la carpeta del proyecto:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\deploy\windows\instalar.ps1
+powershell -ExecutionPolicy Bypass -File .\deploy\windows\desplegar.ps1
 ```
 
 Va en dos vueltas: la primera pone WSL y pide reiniciar; al volver se relanza y
-hace el resto. Se puede repetir las veces que haga falta.
+hace el resto. Se puede repetir las veces que haga falta — también es como se
+sube código nuevo: vuelve a copiar el proyecto y reconstruye.
 
 Lo único que pide por teclado es la contraseña de Windows, y solo para el paso
 10: sin ella no se puede dejar una tarea que arranque sin sesión abierta.

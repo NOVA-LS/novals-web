@@ -1,10 +1,13 @@
-﻿# Deja un Windows Server 2022 o 2025 listo y la web arrancando.
+﻿# Deja un Windows Server 2022 o 2025 listo y la web arrancando. También sirve
+# para subir código nuevo: relanzado, vuelve a copiar el proyecto entero a WSL
+# (sin arrastrar ficheros viejos) y reconstruye.
 #
 #   Clic derecho -> "Ejecutar con PowerShell" (como Administrador)
-#   o bien:  powershell -ExecutionPolicy Bypass -File .\deploy\windows\instalar.ps1
+#   o bien:  powershell -ExecutionPolicy Bypass -File .\deploy\windows\desplegar.ps1
 #
 # Va en dos vueltas: la primera pone WSL y pide reiniciar; la segunda hace el
-# resto. Se puede relanzar las veces que haga falta, lo que ya esté no se toca.
+# resto. Se puede relanzar las veces que haga falta: lo de WSL/Docker/Caddy no
+# se toca si ya estaba, pero el código del proyecto se copia de cero cada vez.
 #
 # Lo que monta:
 #   internet -> Windows (80/443) -> Caddy -> 127.0.0.1:3000 -> WSL2 -> Docker -> la web
@@ -135,7 +138,12 @@ Decir "Copiando el proyecto a $CarpetaLinux"
 $rutaEnLinux = (wsl -d $Distro -e wslpath -a "$RaizProyecto").Trim()
 if (-not $rutaEnLinux) { Fallar "No he podido traducir la ruta del proyecto." }
 
-EnLinux "mkdir -p '$CarpetaLinux' && cp -r '$rutaEnLinux/.' '$CarpetaLinux/' && chmod +x '$CarpetaLinux/deploy/'*.sh"
+# «rm -rf» primero y no un «cp -r» encima de lo que ya hubiera: en una
+# actualización, un fichero borrado o renombrado en el origen se quedaba
+# rondando en $CarpetaLinux, y de ahí salían builds con código de dos
+# versiones distintas mezclado. Lo que persiste va en volúmenes de Docker
+# aparte (nova-data, nova-uploads), así que borrar esto no toca datos.
+EnLinux "rm -rf '$CarpetaLinux' && mkdir -p '$CarpetaLinux' && cp -r '$rutaEnLinux/.' '$CarpetaLinux/' && chmod +x '$CarpetaLinux/deploy/'*.sh"
 if ($LASTEXITCODE -ne 0) { Fallar "No se ha podido copiar el proyecto." }
 Bien "copiado"
 
