@@ -2,6 +2,7 @@
 
 import { useMemo, useSyncExternalStore } from "react";
 import { definicionDeVista, leerVistaBruta } from "@/lib/forms/vista-previa";
+import { huellaDeCampos } from "@/lib/forms/esquema";
 import { esPregunta, type FormDefinition } from "@/lib/forms";
 import { CampoFormulario } from "@/components/ui/campo";
 import { Boton } from "@/components/ui/button";
@@ -25,12 +26,20 @@ export function VistaPreviaFormulario({ form }: { form: FormDefinition }) {
   );
 
   const borrador = useMemo(
-    () => definicionDeVista(bruto, form.type, form.version),
-    [bruto, form.type, form.version],
+    () => definicionDeVista(bruto, form.type),
+    [bruto, form.type],
   );
 
   const vista = borrador ?? form;
-  const esBorrador = borrador !== null;
+  // No basta con que haya algo en sessionStorage: el editor lo escribe en
+  // cuanto se abre, aunque no se haya tocado nada. Solo es un borrador de
+  // verdad si difiere de lo guardado — misma comparación que usa el editor
+  // para su propio aviso de "sin guardar".
+  const esBorrador =
+    borrador !== null &&
+    (borrador.title !== form.title ||
+      borrador.summary !== form.summary ||
+      huellaDeCampos(borrador.fields) !== huellaDeCampos(form.fields));
 
   return (
     <div className="grid gap-[var(--space-xl)] lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
@@ -70,7 +79,7 @@ export function VistaPreviaFormulario({ form }: { form: FormDefinition }) {
 
       <aside className="tile grid gap-[var(--space-sm)] lg:sticky lg:top-24">
         <h3 className="display text-(length:--text-md)">
-          {esBorrador ? "Sin guardar" : `Versión ${form.version}`}
+          {esBorrador ? "Sin guardar" : "Guardado"}
         </h3>
         <p className="text-sm text-[var(--color-muted)]">
           {esBorrador

@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from "lucide-react";
 import { guardarFormulario } from "@/lib/actions/formularios";
 import { claveDeCampo, huellaDeCampos } from "@/lib/forms/esquema";
-import { guardarVistaBruta } from "@/lib/forms/vista-previa";
+import { guardarVistaBruta, leerVistaBruta } from "@/lib/forms/vista-previa";
 import { esPregunta, type Field, type FormDefinition } from "@/lib/forms";
 import { Boton } from "@/components/ui/button";
 
@@ -30,13 +30,20 @@ type Linea = { clave: string; nuevo: boolean; campo: Field };
 /** Propiedades que tienen todas las preguntas, sean del tipo que sean. */
 type Comunes = { label: string; help?: string; required?: boolean; name: string };
 
+/**
+ * Con qué se puede montar una pregunta nueva.
+ *
+ * "checkbox" (la casilla suelta de sí/no) no está: "Lista de opciones" con una
+ * sola opción y en casillas hace lo mismo y más. Las preguntas que ya son de
+ * ese tipo se siguen viendo y editando bien —ver `opcionesDeTipo` más abajo—,
+ * solo que no se puede crear ninguna nueva.
+ */
 const TIPOS: { valor: Field["kind"]; texto: string }[] = [
   { valor: "text", texto: "Texto corto" },
   { valor: "textarea", texto: "Texto largo" },
   { valor: "number", texto: "Número" },
   { valor: "date", texto: "Fecha" },
   { valor: "select", texto: "Lista de opciones" },
-  { valor: "checkbox", texto: "Casilla" },
   { valor: "file", texto: "Subir PDF" },
   { valor: "seccion", texto: "Sección" },
   { valor: "texto", texto: "Texto informativo" },
@@ -86,6 +93,7 @@ function conTipo(campo: Field, kind: Field["kind"]): Field {
             ? campo.options
             : [{ value: "opcion_1", label: "Primera opción" }],
         multiple: campo.kind === "select" ? campo.multiple : undefined,
+        radios: campo.kind === "select" ? campo.radios : undefined,
       };
     case "number":
       return { ...base, kind };
@@ -130,6 +138,7 @@ export function EditorFormulario({
   const [lineas, setLineas] = useState<Linea[]>(() => lineasDe(form.fields));
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const [guardando, empezar] = useTransition();
+  const restaurado = useRef(false);
 
   const campos = lineas.map((linea) => linea.campo);
   const cambiadas = huellaDeCampos(campos) !== huellaDeCampos(form.fields);
@@ -143,6 +152,57 @@ export function EditorFormulario({
     summary: resumen,
     fields: campos,
   });
+
+  // Recupera lo que hubiera a medio escribir de una visita anterior a esta
+  // misma pestaña (por ejemplo, al volver de "Cómo se verá"): si no, cada
+  // vez que la página se vuelve a montar se pierde todo lo no guardado, y lo
+  // único que queda es lo último guardado de verdad.
+  //
+  // Solo al montar, y no en cada cambio de `form`: un guardado con éxito
+  // trae un `form` nuevo por `router.refresh()`, y ahí no hay nada que
+  // recuperar —lo que se acaba de guardar ya es lo que hay en pantalla—.
+  useEffect(() => {
+    // Sin esto, el modo estricto de "next dev" (que monta y vuelve a montar
+    // en desarrollo para cazar fallos) ejecuta este efecto dos veces: la
+    // segunda vuelve a leer sessionStorage justo cuando el otro efecto —el
+    // que escribe— ya lo había pisado con el estado de antes de restaurar, y
+    // el borrador que se acababa de traer se perdía por el camino.
+    if (restaurado.current) return;
+    restaurado.current = true;
+
+    const bruto = leerVistaBruta(form.type);
+    if (!bruto) return;
+
+    try {
+      const borrador = JSON.parse(bruto) as {
+        title: string;
+        summary: string;
+        fields: Field[];
+      };
+
+      // Deliberado: es la única forma de traer de vuelta un borrador que
+      // vive en sessionStorage —fuera del árbol de React— justo cuando la
+      // página se vuelve a montar. La regla espera derivar estado del
+      // renderizado; esto sincroniza con un almacén externo, que es
+      // justo el caso que la propia regla da por válido.
+      /* eslint-disable react-hooks/set-state-in-effect */
+      setTitulo(borrador.title);
+      setResumen(borrador.summary);
+      setLineas(
+        borrador.fields.map((campo) => ({
+          clave: crypto.randomUUID(),
+          // Nueva es la que no estaba ya guardada con esa clave: es lo mismo
+          // que decidiría si se acabara de añadir ahora mismo.
+          nuevo: !form.fields.some((guardado) => guardado.name === campo.name),
+          campo,
+        })),
+      );
+      /* eslint-enable react-hooks/set-state-in-effect */
+    } catch {
+      // Borrador corrupto: se queda lo que ya trajo el servidor.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     guardarVistaBruta(form.type, paraLaVista);
@@ -255,7 +315,6 @@ export function EditorFormulario({
             id="form-titulo"
             className="input"
             value={titulo}
-            maxLength={60}
             onChange={(evento) => {
               setTitulo(evento.target.value);
               setAviso(null);
@@ -275,7 +334,6 @@ export function EditorFormulario({
             id="form-resumen"
             className="input"
             rows={3}
-            maxLength={500}
             value={resumen}
             onChange={(evento) => {
               setResumen(evento.target.value);
@@ -291,7 +349,7 @@ export function EditorFormulario({
         </h2>
         <Boton type="button" onClick={añadir}>
           <Plus size={15} aria-hidden />
-          Añadir pregunta
+          Añadir ítem
         </Boton>
       </div>
 
@@ -306,6 +364,13 @@ export function EditorFormulario({
         {lineas.map((linea, indice) => {
           const campo = linea.campo;
           const idBase = `campo-${linea.clave}`;
+          // Una pregunta que ya era "checkbox" antes de retirar el tipo
+          // necesita seguir viendo su propio valor en el desplegable, o
+          // quedaría mostrando cualquier otra cosa sin que nadie la tocara.
+          const opcionesDeTipo =
+            campo.kind === "checkbox" && !TIPOS.some((tipo) => tipo.valor === "checkbox")
+              ? [...TIPOS, { valor: "checkbox" as const, texto: "Casilla (retirado)" }]
+              : TIPOS;
 
           return (
             <li
@@ -369,7 +434,6 @@ export function EditorFormulario({
                   id={`${idBase}-label`}
                   className="input"
                   value={campo.label}
-                  maxLength={160}
                   placeholder={
                     campo.kind === "texto" || campo.kind === "aviso"
                       ? "Opcional"
@@ -396,7 +460,7 @@ export function EditorFormulario({
                       )
                     }
                   >
-                    {TIPOS.map((tipo) => (
+                    {opcionesDeTipo.map((tipo) => (
                       <option key={tipo.valor} value={tipo.valor}>
                         {tipo.texto}
                       </option>
@@ -417,7 +481,6 @@ export function EditorFormulario({
                       id={`${idBase}-ayuda`}
                       className="input"
                       rows={3}
-                      maxLength={300}
                       value={campo.help ?? ""}
                       onChange={(evento) =>
                         cambiarComun(linea.clave, {
@@ -430,7 +493,6 @@ export function EditorFormulario({
                       id={`${idBase}-ayuda`}
                       className="input"
                       value={campo.help ?? ""}
-                      maxLength={300}
                       placeholder="Opcional: se lee bajo el enunciado"
                       onChange={(evento) =>
                         cambiarComun(linea.clave, {
@@ -493,7 +555,6 @@ export function EditorFormulario({
                       id={`${idBase}-pista`}
                       className="input"
                       value={campo.placeholder ?? ""}
-                      maxLength={120}
                       onChange={(evento) =>
                         cambiar(linea.clave, (actual) =>
                           actual.kind === "text" || actual.kind === "textarea"
@@ -568,6 +629,23 @@ export function EditorFormulario({
                     />
                     Permitir varias respuestas
                   </label>
+                  {campo.multiple ? null : (
+                    <label className="flex items-center gap-[var(--space-xs)] text-sm text-[var(--color-muted)]">
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-[var(--color-ink)]"
+                        checked={campo.radios ?? false}
+                        onChange={(evento) =>
+                          cambiar(linea.clave, (actual) =>
+                            actual.kind === "select"
+                              ? { ...actual, radios: evento.target.checked }
+                              : actual,
+                          )
+                        }
+                      />
+                      Casillas en vez de desplegable
+                    </label>
+                  )}
                   <Opciones
                     campo={campo}
                     idBase={idBase}
@@ -614,13 +692,7 @@ export function EditorFormulario({
           {guardando ? "Guardando…" : "Guardar cambios"}
         </Boton>
 
-        <span className="meta">
-          {sinGuardar
-            ? cambiadas
-              ? `Las preguntas cambian: pasará a la versión ${form.version + 1}`
-              : "Sin guardar"
-            : `Versión ${form.version} · al día`}
-        </span>
+        {sinGuardar ? <span className="meta">Sin guardar</span> : null}
 
         {aviso ? (
           <span
@@ -638,8 +710,10 @@ export function EditorFormulario({
 
       {recibidas > 0 && cambiadas ? (
         <p className="meta">
-          Ya hay {recibidas} solicitud(es) enviadas. Las guardadas conservan la
-          versión con la que se contestaron, así que seguirán leyéndose igual.
+          Ya hay {recibidas} solicitud(es) enviadas. Al guardar, sus respuestas
+          se leerán con el cuestionario de ahora, no con el de cuando
+          contestaron: una pregunta quitada o renombrada se verá como
+          «pregunta retirada» en las suyas.
         </p>
       ) : null}
     </div>
@@ -683,7 +757,6 @@ function Opciones({
               aria-label={`Opción ${indice + 1}`}
               id={`${idBase}-opcion-${indice}`}
               value={opcion.label}
-              maxLength={80}
               onChange={(evento) => {
                 const label = evento.target.value;
                 const sigueAlTexto = nuevo || SIN_TOCAR.test(opcion.value);

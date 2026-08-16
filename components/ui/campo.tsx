@@ -38,7 +38,7 @@ export function CampoFormulario({
     return (
       <div className="grid gap-[var(--space-2xs)] border-t border-[var(--color-rule)] pt-[var(--space-md)] first:border-t-0 first:pt-0">
         <h3 className="display text-(length:--text-md)">{campo.label}</h3>
-        {campo.help ? <p className="text-sm text-[var(--color-muted)]">{campo.help}</p> : null}
+        {campo.help ? <p className="text-sm whitespace-pre-wrap text-[var(--color-muted)]">{campo.help}</p> : null}
       </div>
     );
   }
@@ -47,7 +47,7 @@ export function CampoFormulario({
     return (
       <div className="grid gap-[var(--space-2xs)]">
         {campo.label ? <p className="field__label">{campo.label}</p> : null}
-        {campo.help ? <p className="text-sm text-[var(--color-muted)]">{campo.help}</p> : null}
+        {campo.help ? <p className="text-sm whitespace-pre-wrap text-[var(--color-muted)]">{campo.help}</p> : null}
       </div>
     );
   }
@@ -59,7 +59,7 @@ export function CampoFormulario({
           <TriangleAlert size={16} aria-hidden />
           {campo.label ? <span className="text-sm font-medium">{campo.label}</span> : null}
         </div>
-        {campo.help ? <p className="text-sm text-[var(--color-ink)]">{campo.help}</p> : null}
+        {campo.help ? <p className="text-sm whitespace-pre-wrap text-[var(--color-ink)]">{campo.help}</p> : null}
       </div>
     );
   }
@@ -92,6 +92,24 @@ export function CampoFormulario({
             >
               <input
                 type="checkbox"
+                name={campo.name}
+                value={opcion.value}
+                disabled={deshabilitado}
+                className="size-4 accent-[var(--color-ink)]"
+              />
+              {opcion.label}
+            </label>
+          ))}
+        </div>
+      ) : campo.kind === "select" && campo.radios ? (
+        <div className="grid gap-[var(--space-2xs)]">
+          {campo.options.map((opcion) => (
+            <label
+              key={opcion.value}
+              className="flex items-center gap-[var(--space-xs)] text-sm text-[var(--color-muted)]"
+            >
+              <input
+                type="radio"
                 name={campo.name}
                 value={opcion.value}
                 disabled={deshabilitado}

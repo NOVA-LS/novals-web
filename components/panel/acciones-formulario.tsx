@@ -41,7 +41,6 @@ export function NuevoFormulario() {
           aria-label="Nombre del formulario nuevo"
           placeholder="Nombre del nuevo"
           value={nombre}
-          maxLength={60}
           onChange={(evento) => setNombre(evento.target.value)}
           disabled={creando}
         />
@@ -110,7 +109,6 @@ export function DuplicarFormulario({
           className="input input--corto"
           aria-label="Nombre del formulario duplicado"
           value={nombre}
-          maxLength={60}
           autoFocus
           onChange={(evento) => setNombre(evento.target.value)}
           disabled={duplicando}
