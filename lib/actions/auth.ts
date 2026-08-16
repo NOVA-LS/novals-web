@@ -12,7 +12,11 @@ import { signIn, signOut } from "@/lib/auth";
 // flujo RSC completo, que es justo lo que se rompía.
 
 export async function entrarConDiscord(datos: FormData) {
-  const destino = String(datos.get("destino") ?? "") || "/formularios";
+  const pedido = String(datos.get("destino") ?? "");
+  // Solo una ruta propia: "//evil.com" o "https://evil.com" parecen relativas
+  // a primera vista pero el navegador las trata como absolutas.
+  const destino =
+    pedido.startsWith("/") && !pedido.startsWith("//") ? pedido : "/formularios";
   await signIn("discord", { redirectTo: destino });
 }
 

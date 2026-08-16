@@ -6,8 +6,26 @@ type Ventana = { conteo: number; expira: number };
 // contenedor; el freno duradero contra el spam es el cooldown en base de datos.
 const ventanas = new Map<string, Ventana>();
 
+// Una clave que se usa una vez y no se repite (p.ej. un ticket concreto) no
+// vuelve a mirarse nunca más, así que nada la borraría sola. Cada tantas
+// llamadas se recorre el mapa entero y se tira lo que ya caducó.
+let llamadasDesdeBarrido = 0;
+const CADA = 200;
+
+function barrer(ahora: number) {
+  llamadasDesdeBarrido += 1;
+  if (llamadasDesdeBarrido < CADA) return;
+  llamadasDesdeBarrido = 0;
+
+  for (const [clave, ventana] of ventanas) {
+    if (ventana.expira < ahora) ventanas.delete(clave);
+  }
+}
+
 export function consumir(clave: string, maximo: number, ventanaMs: number) {
   const ahora = Date.now();
+  barrer(ahora);
+
   const actual = ventanas.get(clave);
 
   if (!actual || actual.expira < ahora) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { traerDeDiscordPorDiscordId } from "@/lib/discord/sincronizar";
+import { consumir } from "@/lib/rate-limit";
 
 /**
  * Aviso de que a alguien le han cambiado los roles en Discord.
@@ -19,6 +20,11 @@ export async function POST(peticion: Request) {
   const secreto = process.env.DISCORD_SYNC_SECRET?.trim();
   // Sin secreto configurado la ruta no existe: mejor eso que abierta de par en par.
   if (!secreto) return new NextResponse(null, { status: 404 });
+
+  // Sin esto, el secreto se puede ir probando a fuerza bruta sin ningún freno.
+  const ip = peticion.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "desconocida";
+  const limite = consumir(`discord-sync:${ip}`, 10, 60 * 1000);
+  if (!limite.permitido) return new NextResponse(null, { status: 429 });
 
   const enviado = peticion.headers.get("authorization")?.replace(/^Bearer /i, "");
   if (!enviado || !igual(enviado, secreto)) {

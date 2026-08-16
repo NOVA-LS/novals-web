@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { marked } from "marked";
-import { guardarNoticia } from "@/lib/actions/posts";
+import { useEffect, useState, useTransition } from "react";
+import { guardarNoticia, previsualizarMarkdown } from "@/lib/actions/posts";
 import { MAX_IMAGEN_MB } from "@/lib/limites";
 import { Boton } from "@/components/ui/button";
 
@@ -18,8 +17,27 @@ type Noticia = {
 export function EditorNoticia({ noticia }: { noticia?: Noticia }) {
   const [contenido, setContenido] = useState(noticia?.contentMd ?? "");
   const [vistaPrevia, setVistaPrevia] = useState(false);
+  const [html, setHtml] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [guardando, empezar] = useTransition();
+
+  // Saneado en el servidor, con el mismo renderMarkdown que se usa al
+  // publicar: nunca se inyecta el HTML crudo de marked en el navegador.
+  useEffect(() => {
+    if (!vistaPrevia || !contenido) return;
+
+    let vigente = true;
+    const espera = setTimeout(() => {
+      previsualizarMarkdown(contenido).then((sano) => {
+        if (vigente) setHtml(sano);
+      });
+    }, 300);
+
+    return () => {
+      vigente = false;
+      clearTimeout(espera);
+    };
+  }, [contenido, vistaPrevia]);
 
   function onSubmit(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -98,14 +116,10 @@ export function EditorNoticia({ noticia }: { noticia?: Noticia }) {
         </div>
 
         {vistaPrevia ? (
-          // Contenido propio, renderizado en el navegador de quien lo escribe.
-          // Al publicarse pasa por el saneado del servidor (lib/markdown.ts).
           <div
             className="tile prose"
             dangerouslySetInnerHTML={{
-              __html: contenido
-                ? marked.parse(contenido, { async: false, gfm: true, breaks: true })
-                : "<p>Nada que previsualizar todavía.</p>",
+              __html: contenido ? html : "<p>Nada que previsualizar todavía.</p>",
             }}
           />
         ) : (

@@ -9,6 +9,7 @@ import { ETIQUETA } from "@/lib/consultas";
 import { ACCIONES, apuntar } from "@/lib/auditoria";
 import { guardarImagen } from "@/lib/uploads";
 import { slugify } from "@/lib/utils";
+import { renderMarkdown } from "@/lib/markdown";
 
 const esquemaNoticia = z.object({
   title: z.string().trim().min(3, "El título es demasiado corto.").max(120),
@@ -103,6 +104,20 @@ export async function guardarNoticia(
   revalidatePath(`/noticias/${slug}`);
   revalidatePath("/panel/noticias");
   redirect("/panel/noticias");
+}
+
+/**
+ * Markdown saneado para la vista previa del editor.
+ *
+ * No se hace en el navegador: el saneado vive en `lib/markdown.ts`, que es
+ * server-only, y es el mismo que se aplica al publicar. Tenerlo en un solo
+ * sitio evita que la vista previa muestre algo que luego el saneado real
+ * recorta —o, peor, que muestre HTML sin sanear en el propio navegador del
+ * admin.
+ */
+export async function previsualizarMarkdown(markdown: string): Promise<string> {
+  await requireUser("ADMIN");
+  return renderMarkdown(markdown);
 }
 
 export async function cambiarPublicacion(id: string, publicar: boolean) {
