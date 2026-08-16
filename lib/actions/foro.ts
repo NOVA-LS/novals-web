@@ -18,7 +18,7 @@ import { crearAviso } from "@/lib/avisos";
 import { CANAL, emitir } from "@/lib/eventos";
 import { ACCIONES, apuntar, type Accion } from "@/lib/auditoria";
 import { sincronizarInsignias } from "@/lib/insignias/sincronizar";
-import { slugify } from "@/lib/utils";
+import { conSlugLibre } from "@/lib/foro/slug";
 
 export type ResultadoForo = { ok: boolean; mensaje?: string };
 
@@ -52,19 +52,6 @@ async function apuntarComoStaff(
   await apuntar({ ...registro, actor: usuario });
 }
 
-/** Slug único legible, con sufijo solo cuando hace falta. */
-async function slugLibre(titulo: string) {
-  const base = slugify(titulo) || "hilo";
-  let candidato = base;
-  let intento = 1;
-
-  while (await db.thread.findUnique({ where: { slug: candidato }, select: { id: true } })) {
-    candidato = `${base}-${++intento}`;
-  }
-
-  return candidato;
-}
-
 export async function crearHilo(datos: FormData): Promise<ResultadoForo> {
   const actor = await actorActual();
 
@@ -93,14 +80,16 @@ export async function crearHilo(datos: FormData): Promise<ResultadoForo> {
     return { ok: false, mensaje: "Esa categoría no existe." };
   }
 
-  const hilo = await db.thread.create({
-    data: {
-      ...parsed.data,
-      slug: await slugLibre(parsed.data.title),
-      authorId: actor!.id,
-    },
-    select: { slug: true, category: true },
-  });
+  const hilo = await conSlugLibre(
+    parsed.data.title,
+    "hilo",
+    async (slug) => !(await db.thread.findUnique({ where: { slug }, select: { id: true } })),
+    (slug) =>
+      db.thread.create({
+        data: { ...parsed.data, slug, authorId: actor!.id },
+        select: { slug: true, category: true },
+      }),
+  );
 
   // Antes del redirect: después de saltar ya no se ejecuta nada de aquí.
   await sincronizarInsignias(actor!.id);
