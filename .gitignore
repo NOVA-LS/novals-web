@@ -43,6 +43,8 @@ next-env.d.ts
 /generated/prisma
 
 # base de datos local y subidas de usuarios (se respaldan aparte, ver deploy/copia.sh)
-/data/*.db
+# el *.db-wal/*.db-shm son de journal_mode=WAL: sin ellos, faltaría lo escrito
+# que aún no se ha volcado al fichero principal.
+/data/*.db*
 /public/uploads/*
 !/public/uploads/.gitkeep

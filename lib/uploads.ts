@@ -115,13 +115,18 @@ export async function guardarImagen(
   };
 }
 
+/** Los PDF empiezan siempre por esta cabecera; cualquier otra cosa no lo es. */
+const CABECERA_PDF = Buffer.from("%PDF-");
+
 /**
  * Valida y escribe un PDF subido. Lanza con un mensaje que se le puede
  * enseñar a quien lo sube.
  *
  * A diferencia de `guardarImagen`, el fichero se escribe tal cual: un PDF no
  * se reescala ni se reescribe, así que no hay nada que `sharp` pueda hacer
- * con él.
+ * con él. Por eso hace falta mirar la cabecera de verdad: el `Content-Type`
+ * lo declara el navegador de quien sube, y nada impide subir cualquier
+ * binario diciendo que es un PDF para que se sirva como tal desde `/uploads`.
  */
 export async function guardarDocumento(
   archivo: File,
@@ -136,6 +141,10 @@ export async function guardarDocumento(
   }
 
   const bytes = Buffer.from(await archivo.arrayBuffer());
+
+  if (!bytes.subarray(0, CABECERA_PDF.length).equals(CABECERA_PDF)) {
+    throw new Error(`${etiqueta} no es un PDF de verdad.`);
+  }
 
   await mkdir(DIRECTORIO, { recursive: true });
   const nombre = `${randomUUID()}.pdf`;

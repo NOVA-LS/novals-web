@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { rutaDeSubida } from "@/lib/uploads";
+import { guardarDocumento, rutaDeSubida } from "@/lib/uploads";
 
 /**
  * Lo que sube la gente ya no lo sirve Next: el servidor de producción solo
@@ -53,5 +53,19 @@ describe("rutaDeSubida", () => {
   it("rechaza lo vacío y lo que empieza por punto", () => {
     expect(rutaDeSubida("")).toBeNull();
     expect(rutaDeSubida(".foto.webp")).toBeNull();
+  });
+});
+
+describe("guardarDocumento", () => {
+  it("rechaza un archivo cuyo contenido no empieza por la cabecera de un PDF", async () => {
+    // El Content-Type dice PDF, pero el contenido es cualquier otra cosa: es
+    // justo lo que declara el navegador de quien sube, no lo que hay de verdad.
+    const falso = new File(["esto no es un PDF, aunque lo diga"], "prueba.pdf", {
+      type: "application/pdf",
+    });
+
+    await expect(guardarDocumento(falso, "El archivo")).rejects.toThrow(
+      "no es un PDF de verdad",
+    );
   });
 });

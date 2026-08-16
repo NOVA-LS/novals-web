@@ -48,6 +48,10 @@ elif [ -f .env.produccion ]; then
 	decir "Creando .env a partir de .env.produccion"
 	cp .env.produccion .env
 	chmod 600 .env
+	# El origen lleva los mismos secretos y por defecto queda legible por
+	# cualquiera del sistema: de nada sirve cerrar la copia si el original
+	# se queda abierto al lado.
+	chmod 600 .env.produccion
 else
 	fallar "No hay .env ni .env.produccion: sin eso la web no arranca"
 fi
@@ -55,8 +59,20 @@ fi
 grep -q '^AUTH_URL="https://' .env || fallar "AUTH_URL tiene que empezar por https:// en el .env"
 
 # ---- 3. Arrancar ----
-decir "Construyendo y levantando la web (la primera vez tarda unos minutos)"
-docker compose up -d --build
+decir "Construyendo la imagen (la primera vez tarda unos minutos)"
+docker compose build
+
+# El contenedor ya no corre como root: si los volúmenes vienen de una
+# instalación anterior a ese cambio, sus ficheros siguen siendo de root y el
+# usuario sin privilegios no podría ni leer la base de datos. Se corrige antes
+# de arrancar; en una instalación nueva los volúmenes están vacíos y esto no
+# hace nada.
+decir "Ajustando permisos de los volúmenes"
+docker compose run --rm --user root --entrypoint sh web \
+	-c 'chown -R node:node /app/data /app/public/uploads'
+
+decir "Levantando la web"
+docker compose up -d
 
 decir "Esperando a que responda"
 for intento in $(seq 1 30); do

@@ -43,6 +43,12 @@ COPY --from=build /app/public ./public
 
 RUN mkdir -p /app/data /app/public/uploads
 
+# Sin esto el proceso corre como root dentro del contenedor: un fallo en
+# cualquier dependencia (Next, Prisma, sharp) se ejecutaría con privilegios
+# completos. La imagen de node ya trae un usuario sin privilegios listo.
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 3000
 # Prisma se llama por su binario y no por pnpm: al runner no llegan el lockfile
 # ni el workspace, así que pnpm se cree que faltan dependencias y trata de

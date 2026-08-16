@@ -10,7 +10,21 @@ function createClient() {
   if (!url) throw new Error("Falta DATABASE_URL");
 
   const adapter = new PrismaBetterSqlite3({ url });
-  return new PrismaClient({ adapter });
+  const client = new PrismaClient({ adapter });
+
+  // Sin WAL, cada escritura bloquea las lecturas (y al revés) más de lo que
+  // hace falta: con el modo rollback-journal de por defecto, una consulta
+  // larga y una escritura concurrente se pisan más de la cuenta. `busy_timeout`
+  // hace que quien llega y encuentra la base ocupada espere en vez de fallar
+  // al momento con SQLITE_BUSY. El adaptador no tiene una opción para esto en
+  // el constructor: se manda como las dos primeras órdenes de la conexión.
+  for (const pragma of ["PRAGMA journal_mode = WAL;", "PRAGMA busy_timeout = 5000;"]) {
+    client.$executeRawUnsafe(pragma).catch((error: unknown) => {
+      console.error(`No se pudo aplicar «${pragma}»`, error);
+    });
+  }
+
+  return client;
 }
 
 export const db = globalForPrisma.prisma ?? createClient();
