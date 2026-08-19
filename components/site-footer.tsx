@@ -7,16 +7,24 @@ export function SiteFooter() {
   return (
     <footer className="mt-[var(--space-3xl)] border-t border-[var(--color-rule)] pt-[var(--space-lg)] pb-[var(--space-xl)]">
       <div className="shell grid gap-[var(--space-xl)]">
-        {/* Tres columnas: copy, marca y enlaces. En móvil se apilan centradas. */}
+        {/* Tres columnas en escritorio: copy, marca y enlaces. En móvil, el
+            copy y el logo comparten fila en vez de apilarse uno sobre otro. */}
         <div className="grid items-center justify-items-center gap-[var(--space-lg)] sm:grid-cols-3">
-          <span className="meta sm:justify-self-start">
-            © {new Date().getFullYear()} · Nova LS
-          </span>
+          <Link
+            href="/"
+            aria-label="NOVA Los Santos · inicio"
+            className="flex items-center gap-[var(--space-md)] sm:contents"
+          >
+            <span className="meta sm:justify-self-start">
+              © {new Date().getFullYear()}
+              <span className="hidden sm:inline"> · Nova LS</span>
+            </span>
 
-          {/* Es el mismo fichero que el logo de la cabecera, así que ya está en
-              caché: cargarlo con prisa no cuesta nada y evita que Next lo
-              confunda con el LCP, que siempre es el logo de arriba. */}
-          <Link href="/" aria-label="NOVA Los Santos · inicio">
+            {/* Es el mismo fichero que el logo de la cabecera, así que ya está
+                en caché: cargarlo con prisa no cuesta nada y evita que Next lo
+                confunda con el LCP, que siempre es el logo de arriba.
+                `sm:contents` saca el logo de este enlace en escritorio para que
+                vuelva a caer en la columna central del grid. */}
             <Image
               src="/brand/logo_blanco_tight.webp"
               alt="NOVA Los Santos"
@@ -52,6 +60,19 @@ export function SiteFooter() {
               </a>
             ) : null}
           </div>
+        </div>
+
+        {/* Fila legal aparte: enlaces informativos, no navegación principal. */}
+        <div className="flex flex-wrap justify-center gap-[var(--space-md)] text-xs text-[var(--color-neutral)]">
+          <Link href="/aviso-legal" className="hover:text-[var(--color-ink)] transition-colors">
+            Aviso legal
+          </Link>
+          <Link href="/privacidad" className="hover:text-[var(--color-ink)] transition-colors">
+            Privacidad
+          </Link>
+          <Link href="/cookies" className="hover:text-[var(--color-ink)] transition-colors">
+            Cookies
+          </Link>
         </div>
       </div>
     </footer>
