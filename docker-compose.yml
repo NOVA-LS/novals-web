@@ -1,0 +1,56 @@
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    # Solo escucha por dentro de la máquina: quien atiende desde fuera es Caddy,
+    # que es el que tiene el certificado. Abrir el 3000 al mundo dejaría entrar
+    # por http saltándose el dominio.
+    ports:
+      - "127.0.0.1:3000:3000"
+    # Sin esto, el registro crece hasta llenar el disco del servidor.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      # La primera respuesta llega después de aplicar las migraciones.
+      start_period: 60s
+      retries: 3
+    environment:
+      DATABASE_URL: "file:/app/data/nova.db"
+      AUTH_SECRET: ${AUTH_SECRET:?define AUTH_SECRET en .env}
+      AUTH_URL: ${AUTH_URL:-http://localhost:3000}
+      AUTH_TRUST_HOST: "true"
+      AUTH_DISCORD_ID: ${AUTH_DISCORD_ID:?define AUTH_DISCORD_ID en .env}
+      AUTH_DISCORD_SECRET: ${AUTH_DISCORD_SECRET:?define AUTH_DISCORD_SECRET en .env}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      NEXT_PUBLIC_DISCORD_INVITE: ${NEXT_PUBLIC_DISCORD_INVITE:-}
+      # Roles que se sincronizan con Discord. Lo que no esté puesto no se toca.
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
+      DISCORD_ROL_INICIADOR: ${DISCORD_ROL_INICIADOR:-}
+      DISCORD_ROL_SOPORTE: ${DISCORD_ROL_SOPORTE:-}
+      DISCORD_ROL_MODERADOR: ${DISCORD_ROL_MODERADOR:-}
+      DISCORD_ROL_ADMIN: ${DISCORD_ROL_ADMIN:-}
+      DISCORD_ROL_WHITELIST: ${DISCORD_ROL_WHITELIST:-}
+      DISCORD_EQUIPO_DEV: ${DISCORD_EQUIPO_DEV:-}
+      DISCORD_EQUIPO_ILEGAL: ${DISCORD_EQUIPO_ILEGAL:-}
+      DISCORD_EQUIPO_LEGAL: ${DISCORD_EQUIPO_LEGAL:-}
+      DISCORD_EQUIPO_COMERCIO: ${DISCORD_EQUIPO_COMERCIO:-}
+      DISCORD_EQUIPO_REDES: ${DISCORD_EQUIPO_REDES:-}
+      DISCORD_EQUIPO_EVENTOS: ${DISCORD_EQUIPO_EVENTOS:-}
+      DISCORD_EQUIPO_REPORTES: ${DISCORD_EQUIPO_REPORTES:-}
+      DISCORD_SYNC_SECRET: ${DISCORD_SYNC_SECRET:-}
+    volumes:
+      # La base de datos y las portadas viven fuera del contenedor: así una
+      # reconstrucción de la imagen no se lleva por delante los datos.
+      - nova-data:/app/data
+      - nova-uploads:/app/public/uploads
+
+volumes:
+  nova-data:
+  nova-uploads:

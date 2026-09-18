@@ -1,0 +1,282 @@
+"use server";
+
+import { revalidatePath, updateTag } from "next/cache";
+import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
+import { requireUser } from "@/lib/guards";
+import { ETIQUETA } from "@/lib/consultas";
+import { ACCIONES, apuntar } from "@/lib/auditoria";
+import { guardarImagen } from "@/lib/uploads";
+import { slugify } from "@/lib/utils";
+import { renderMarkdown } from "@/lib/markdown";
+import { esquemaNoticia } from "@/lib/noticias";
+import { enviarDM, listarCanales, publicarEnCanal } from "@/lib/discord";
+import type { Embed } from "@/lib/embed";
+import { agruparPorCategoria, type GrupoDeCanales } from "@/lib/discord/canales";
+import { construirEmbedNoticia } from "@/lib/discord/noticia";
+
+export type ResultadoNoticia = { ok: boolean; mensaje?: string };
+
+function baseUrl() {
+  return (process.env.AUTH_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+}
+
+/**
+ * A quien tenga el aviso activado, un privado con la misma noticia.
+ *
+ * En paralelo, como `avisarTicketPorDiscord`. Que a alguien le rebote el
+ * privado —lo normal es tener los mensajes directos cerrados— no es un fallo
+ * nuestro ni algo que el staff pueda arreglar, así que no se registra.
+ */
+async function avisarSuscriptores(embed: Embed) {
+  const suscriptores = await db.user.findMany({
+    where: { avisosNoticias: true },
+    select: { discordId: true },
+  });
+
+  await Promise.all(
+    suscriptores.map(async ({ discordId }) => {
+      const resultado = await enviarDM(discordId, embed);
+      if (!resultado.ok && resultado.motivo === "ERROR") {
+        console.error(`No se pudo avisar de la noticia a ${discordId}: ${resultado.detalle}`);
+      }
+    }),
+  );
+}
+
+/**
+ * Avisa de que la noticia ya está publicada: en el canal de Discord elegido y
+ * por privado a quien lo tenga activado.
+ *
+ * Nunca lanza —ni `publicarEnCanal` ni `enviarDM` lo hacen— así que un
+ * Discord caído no puede tumbar la publicación en la web.
+ */
+async function avisarPublicacion(noticia: {
+  title: string;
+  excerpt: string;
+  slug: string;
+  coverImage: string | null;
+  channelId: string;
+}) {
+  const datos = {
+    title: noticia.title,
+    excerpt: noticia.excerpt,
+    coverImage: noticia.coverImage ? `${baseUrl()}${noticia.coverImage}` : null,
+  };
+  const url = `${baseUrl()}/noticias/${noticia.slug}`;
+  const embedCanal = construirEmbedNoticia(datos, url);
+  // Solo el privado dice cómo desactivarlo: en el canal no hay nada personal
+  // que apagar.
+  const embedDM = construirEmbedNoticia(datos, url, `${baseUrl()}/avisos/ajustes`);
+
+  await Promise.all([
+    publicarEnCanal(noticia.channelId, embedCanal),
+    avisarSuscriptores(embedDM),
+  ]);
+}
+
+/**
+ * Canales del servidor agrupados por categoría, para el desplegable del
+ * editor.
+ *
+ * Se cachea un minuto en memoria: es una lista de Discord que apenas cambia,
+ * y sin esto cada carga del editor golpearía la API de Discord.
+ */
+let cacheCanales: { hasta: number; grupos: GrupoDeCanales[] } | null = null;
+const DURACION_CACHE_MS = 60_000;
+
+export async function listarCanalesDiscord(): Promise<GrupoDeCanales[]> {
+  await requireUser("ADMIN");
+
+  if (cacheCanales && cacheCanales.hasta > Date.now()) return cacheCanales.grupos;
+
+  const grupos = agruparPorCategoria(await listarCanales());
+  cacheCanales = { hasta: Date.now() + DURACION_CACHE_MS, grupos };
+  return grupos;
+}
+
+type Portada = { url: string; width: number; height: number };
+
+async function guardarPortada(archivo: File | null): Promise<Portada | undefined> {
+  if (!archivo || archivo.size === 0) return undefined;
+  return guardarImagen(archivo, "La portada");
+}
+
+/** Slug único: si ya existe, se le añade un sufijo corto. */
+async function slugLibre(titulo: string, idActual?: string) {
+  const base = slugify(titulo) || "noticia";
+  let candidato = base;
+  let intento = 1;
+
+  while (true) {
+    const existente = await db.post.findUnique({
+      where: { slug: candidato },
+      select: { id: true },
+    });
+    if (!existente || existente.id === idActual) return candidato;
+    candidato = `${base}-${++intento}`;
+  }
+}
+
+export async function guardarNoticia(
+  id: string | null,
+  datos: FormData,
+): Promise<ResultadoNoticia> {
+  const autor = await requireUser("ADMIN");
+
+  const parsed = esquemaNoticia.safeParse({
+    title: datos.get("title"),
+    excerpt: datos.get("excerpt"),
+    contentMd: datos.get("contentMd"),
+    published: datos.get("published") === "on",
+    channelId: datos.get("channelId") ?? "",
+  });
+
+  if (!parsed.success) {
+    return { ok: false, mensaje: parsed.error.issues[0].message };
+  }
+
+  let portada: Portada | undefined;
+  try {
+    portada = await guardarPortada(datos.get("coverImage") as File | null);
+  } catch (error) {
+    return { ok: false, mensaje: (error as Error).message };
+  }
+
+  const previa = id
+    ? await db.post.findUnique({
+        where: { id },
+        select: { publishedAt: true, coverImage: true, discordAvisadoEn: true },
+      })
+    : null;
+
+  // Toda noticia necesita portada: si no se sube una ahora, tiene que
+  // quedarle la de antes.
+  if (!portada && !previa?.coverImage) {
+    return { ok: false, mensaje: "Sube una imagen de portada." };
+  }
+
+  const { channelId, ...campos } = parsed.data;
+  const slug = await slugLibre(campos.title, id ?? undefined);
+  const publicando = campos.published;
+
+  if (id) {
+    // Solo se avisa la primera vez: despublicar y volver a publicar no repite
+    // el mensaje, aunque el resto de la noticia haya cambiado.
+    const avisar = publicando && !previa?.discordAvisadoEn;
+
+    await db.post.update({
+      where: { id },
+      data: {
+        ...campos,
+        channelId,
+        slug,
+        ...(portada
+          ? { coverImage: portada.url, coverWidth: portada.width, coverHeight: portada.height }
+          : {}),
+        publishedAt: publicando ? (previa?.publishedAt ?? new Date()) : null,
+        ...(avisar ? { discordAvisadoEn: new Date() } : {}),
+      },
+    });
+
+    if (avisar) {
+      await avisarPublicacion({
+        ...campos,
+        slug,
+        coverImage: portada?.url ?? previa?.coverImage ?? null,
+        channelId: channelId!,
+      });
+    }
+  } else {
+    await db.post.create({
+      data: {
+        ...campos,
+        channelId,
+        slug,
+        coverImage: portada?.url,
+        coverWidth: portada?.width,
+        coverHeight: portada?.height,
+        authorId: autor.id,
+        publishedAt: publicando ? new Date() : null,
+        ...(publicando ? { discordAvisadoEn: new Date() } : {}),
+      },
+    });
+
+    if (publicando) {
+      await avisarPublicacion({
+        ...campos,
+        slug,
+        coverImage: portada?.url ?? null,
+        channelId: channelId!,
+      });
+    }
+  }
+
+  // Lo publicado se sirve de caché: sin esto, el cambio no se vería hasta que
+  // caducara sola.
+  updateTag(ETIQUETA.noticias);
+  revalidatePath("/");
+  revalidatePath("/noticias");
+  revalidatePath(`/noticias/${slug}`);
+  revalidatePath("/panel/noticias");
+  redirect("/panel/noticias");
+}
+
+/**
+ * Markdown saneado para la vista previa del editor.
+ *
+ * No se hace en el navegador: el saneado vive en `lib/markdown.ts`, que es
+ * server-only, y es el mismo que se aplica al publicar. Tenerlo en un solo
+ * sitio evita que la vista previa muestre algo que luego el saneado real
+ * recorta —o, peor, que muestre HTML sin sanear en el propio navegador del
+ * admin.
+ */
+export async function previsualizarMarkdown(markdown: string): Promise<string> {
+  await requireUser("ADMIN");
+  return renderMarkdown(markdown);
+}
+
+export async function cambiarPublicacion(id: string, publicar: boolean) {
+  const autor = await requireUser("ADMIN");
+
+  const previa = await db.post.findUnique({
+    where: { id },
+    select: { channelId: true, discordAvisadoEn: true },
+  });
+  if (publicar && !previa?.channelId) {
+    throw new Error("SIN_CANAL_DISCORD");
+  }
+  // Solo se avisa la primera vez: despublicar y volver a publicar no repite
+  // el mensaje.
+  const avisar = publicar && !previa?.discordAvisadoEn;
+
+  const noticia = await db.post.update({
+    where: { id },
+    data: {
+      published: publicar,
+      publishedAt: publicar ? new Date() : null,
+      ...(avisar ? { discordAvisadoEn: new Date() } : {}),
+    },
+    select: { slug: true, title: true, excerpt: true, coverImage: true, channelId: true },
+  });
+
+  if (avisar && noticia.channelId) {
+    await avisarPublicacion({ ...noticia, channelId: noticia.channelId });
+  }
+
+  await apuntar({
+    accion: ACCIONES.CONTENIDO,
+    actor: autor,
+    objetivo: `Noticia «${noticia.title}»`,
+    url: `/noticias/${noticia.slug}`,
+    detalle: publicar ? "publicada" : "retirada",
+  });
+
+  // Lo publicado se sirve de caché: sin esto, el cambio no se vería hasta que
+  // caducara sola.
+  updateTag(ETIQUETA.noticias);
+  revalidatePath("/");
+  revalidatePath("/noticias");
+  revalidatePath(`/noticias/${noticia.slug}`);
+  revalidatePath("/panel/noticias");
+}

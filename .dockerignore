@@ -1,0 +1,14 @@
+node_modules
+.next
+data
+public/uploads
+.env
+.env.*
+!.env.example
+docs
+tests
+logos
+.git
+
+# Los guiones y ficheros de despliegue no hacen falta dentro de la imagen.
+deploy
