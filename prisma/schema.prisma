@@ -225,8 +225,12 @@ model Post {
   published   Boolean   @default(false)
   publishedAt DateTime?
   /// Canal de Discord donde se publica al pasar a publicada. Sin canal, no se
-  /// avisa a Discord aunque la noticia salga en la web.
+  /// avisa en ningún canal aunque la noticia salga en la web.
   channelId   String?
+  /// Si al publicarse se manda también un privado a quien tenga el aviso
+  /// activado. Independiente del canal: se puede avisar por uno, por el otro,
+  /// por los dos o por ninguno.
+  notificarPrivado Boolean @default(true)
   /// Cuándo se avisó a Discord. Una vez puesta, no se vuelve a avisar aunque
   /// la noticia se despublique y se vuelva a publicar.
   discordAvisadoEn DateTime?

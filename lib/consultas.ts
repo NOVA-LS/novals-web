@@ -38,6 +38,8 @@ const RESUMEN_NOTICIA = {
   title: true,
   excerpt: true,
   coverImage: true,
+  coverWidth: true,
+  coverHeight: true,
   publishedAt: true,
 } as const;
 
@@ -46,6 +48,9 @@ export type ResumenNoticia = {
   title: string;
   excerpt: string;
   coverImage: string | null;
+  /** Medidas reales de la portada, para mostrarla entera y sin recortar. */
+  coverWidth: number;
+  coverHeight: number;
   fecha: string | null;
 };
 
@@ -159,8 +164,15 @@ function conFecha(noticia: {
   title: string;
   excerpt: string;
   coverImage: string | null;
+  coverWidth: number | null;
+  coverHeight: number | null;
   publishedAt: Date | null;
 }): ResumenNoticia {
-  const { publishedAt, ...resto } = noticia;
-  return { ...resto, fecha: publishedAt ? formatearFecha(publishedAt) : null };
+  const { publishedAt, coverWidth, coverHeight, ...resto } = noticia;
+  return {
+    ...resto,
+    coverWidth: coverWidth ?? MEDIDA_PORTADA_POR_DEFECTO.width,
+    coverHeight: coverHeight ?? MEDIDA_PORTADA_POR_DEFECTO.height,
+    fecha: publishedAt ? formatearFecha(publishedAt) : null,
+  };
 }

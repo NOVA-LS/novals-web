@@ -91,9 +91,11 @@ export default async function HomePage() {
                   <Image
                     src={noticia.coverImage}
                     alt=""
-                    width={320}
-                    height={180}
-                    className="aspect-video w-full object-cover"
+                    width={noticia.coverWidth}
+                    height={noticia.coverHeight}
+                    sizes="(min-width: 40rem) 16rem, 100vw"
+                    quality={90}
+                    className="h-auto w-full"
                   />
                 ) : null}
                 <div className="grid gap-[var(--space-2xs)] pt-[var(--space-sm)]">

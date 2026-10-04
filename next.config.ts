@@ -29,6 +29,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
 
   images: {
+    // Next solo admite las calidades que se declaran aquí; las portadas piden
+    // más que el 75 por defecto porque llevan texto y logos que se ven blandos.
+    qualities: [75, 90, 95],
     // Los avatares de Discord son los únicos externos que servimos.
     remotePatterns: [{ protocol: "https", hostname: "cdn.discordapp.com" }],
   },

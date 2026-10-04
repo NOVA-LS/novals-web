@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import sharp, { type OutputInfo } from "sharp";
+import sharp, { type OutputInfo, type WebpOptions } from "sharp";
 import { MAX_IMAGEN_MB, MAX_LADO_PX, MAX_PDF_MB } from "@/lib/limites";
 
 /**
@@ -74,6 +74,7 @@ export async function guardarImagen(
   archivo: File,
   etiqueta = "La imagen",
   maxMb = MAX_IMAGEN_MB,
+  webp: WebpOptions = { quality: 82 },
 ): Promise<ImagenGuardada> {
   if (!TIPOS.has(archivo.type)) {
     throw new Error(`${etiqueta} debe ser JPG, PNG o WEBP.`);
@@ -96,7 +97,7 @@ export async function guardarImagen(
         fit: "inside",
         withoutEnlargement: true,
       })
-      .webp({ quality: 82 })
+      .webp(webp)
       .toBuffer({ resolveWithObject: true });
   } catch {
     throw new Error(`${etiqueta} no parece una imagen válida.`);

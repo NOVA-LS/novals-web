@@ -81,7 +81,10 @@ export default async function NoticiaPage({
           width={noticia.coverWidth}
           height={noticia.coverHeight}
           priority
-          sizes="(min-width: 50rem) 46rem, 100vw"
+          // Sin pasar por el optimizador: es la imagen principal de la página y
+          // reducirla y recomprimirla otra vez le quita justo el detalle que se
+          // guardó. El fichero ya sale en WEBP y se sirve con caché de un año.
+          unoptimized
           className="portada-noticia"
         />
       ) : null}

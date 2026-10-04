@@ -28,6 +28,7 @@ export default async function EditarNoticiaPage({
         published: true,
         coverImage: true,
         channelId: true,
+        notificarPrivado: true,
       },
     }),
     listarCanalesDiscord(),

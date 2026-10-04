@@ -13,7 +13,7 @@ import { esquemaNoticia } from "@/lib/noticias";
 import { enviarDM, listarCanales, publicarEnCanal } from "@/lib/discord";
 import type { Embed } from "@/lib/embed";
 import { agruparPorCategoria, type GrupoDeCanales } from "@/lib/discord/canales";
-import { construirEmbedNoticia } from "@/lib/discord/noticia";
+import { construirEmbedCanalNoticia, construirEmbedNoticia } from "@/lib/discord/noticia";
 
 export type ResultadoNoticia = { ok: boolean; mensaje?: string };
 
@@ -45,8 +45,8 @@ async function avisarSuscriptores(embed: Embed) {
 }
 
 /**
- * Avisa de que la noticia ya está publicada: en el canal de Discord elegido y
- * por privado a quien lo tenga activado.
+ * Avisa de que la noticia ya está publicada: en el canal de Discord elegido,
+ * si lo hay, y por privado a quien lo tenga activado, si se pidió.
  *
  * Nunca lanza —ni `publicarEnCanal` ni `enviarDM` lo hacen— así que un
  * Discord caído no puede tumbar la publicación en la web.
@@ -56,7 +56,8 @@ async function avisarPublicacion(noticia: {
   excerpt: string;
   slug: string;
   coverImage: string | null;
-  channelId: string;
+  channelId?: string | null;
+  notificarPrivado: boolean;
 }) {
   const datos = {
     title: noticia.title,
@@ -64,14 +65,16 @@ async function avisarPublicacion(noticia: {
     coverImage: noticia.coverImage ? `${baseUrl()}${noticia.coverImage}` : null,
   };
   const url = `${baseUrl()}/noticias/${noticia.slug}`;
-  const embedCanal = construirEmbedNoticia(datos, url);
-  // Solo el privado dice cómo desactivarlo: en el canal no hay nada personal
-  // que apagar.
-  const embedDM = construirEmbedNoticia(datos, url, `${baseUrl()}/avisos/ajustes`);
 
   await Promise.all([
-    publicarEnCanal(noticia.channelId, embedCanal),
-    avisarSuscriptores(embedDM),
+    noticia.channelId
+      ? publicarEnCanal(noticia.channelId, construirEmbedCanalNoticia(datos, url))
+      : undefined,
+    // Solo el privado dice cómo desactivarlo: en el canal no hay nada personal
+    // que apagar. Tampoco comparten formato: el canal lleva el de comunicado.
+    noticia.notificarPrivado
+      ? avisarSuscriptores(construirEmbedNoticia(datos, url, `${baseUrl()}/avisos/ajustes`))
+      : undefined,
   ]);
 }
 
@@ -95,11 +98,16 @@ export async function listarCanalesDiscord(): Promise<GrupoDeCanales[]> {
   return grupos;
 }
 
+/** El máximo que da WEBP con pérdida. Una portada lleva texto y logos, y a 82
+ * —lo normal en las fotos de galería— se ven con halo; `smartSubsample` evita
+ * además que los bordes blancos sobre fondo oscuro pierdan color. */
+const WEBP_PORTADA = { quality: 100, smartSubsample: true } as const;
+
 type Portada = { url: string; width: number; height: number };
 
 async function guardarPortada(archivo: File | null): Promise<Portada | undefined> {
   if (!archivo || archivo.size === 0) return undefined;
-  return guardarImagen(archivo, "La portada");
+  return guardarImagen(archivo, "La portada", undefined, WEBP_PORTADA);
 }
 
 /** Slug único: si ya existe, se le añade un sufijo corto. */
@@ -129,6 +137,7 @@ export async function guardarNoticia(
     excerpt: datos.get("excerpt"),
     contentMd: datos.get("contentMd"),
     published: datos.get("published") === "on",
+    notificarPrivado: datos.get("notificarPrivado") === "on",
     channelId: datos.get("channelId") ?? "",
   });
 
@@ -159,11 +168,14 @@ export async function guardarNoticia(
   const { channelId, ...campos } = parsed.data;
   const slug = await slugLibre(campos.title, id ?? undefined);
   const publicando = campos.published;
+  // Sin canal y sin privado no hay nada que avisar: no se da por avisada, para
+  // que si luego se activa alguno de los dos, salga la primera vez que se guarde.
+  const hayAviso = !!channelId || campos.notificarPrivado;
 
   if (id) {
     // Solo se avisa la primera vez: despublicar y volver a publicar no repite
     // el mensaje, aunque el resto de la noticia haya cambiado.
-    const avisar = publicando && !previa?.discordAvisadoEn;
+    const avisar = publicando && hayAviso && !previa?.discordAvisadoEn;
 
     await db.post.update({
       where: { id },
@@ -184,7 +196,7 @@ export async function guardarNoticia(
         ...campos,
         slug,
         coverImage: portada?.url ?? previa?.coverImage ?? null,
-        channelId: channelId!,
+        channelId,
       });
     }
   } else {
@@ -198,16 +210,16 @@ export async function guardarNoticia(
         coverHeight: portada?.height,
         authorId: autor.id,
         publishedAt: publicando ? new Date() : null,
-        ...(publicando ? { discordAvisadoEn: new Date() } : {}),
+        ...(publicando && hayAviso ? { discordAvisadoEn: new Date() } : {}),
       },
     });
 
-    if (publicando) {
+    if (publicando && hayAviso) {
       await avisarPublicacion({
         ...campos,
         slug,
         coverImage: portada?.url ?? null,
-        channelId: channelId!,
+        channelId,
       });
     }
   }
@@ -241,14 +253,14 @@ export async function cambiarPublicacion(id: string, publicar: boolean) {
 
   const previa = await db.post.findUnique({
     where: { id },
-    select: { channelId: true, discordAvisadoEn: true },
+    select: { channelId: true, notificarPrivado: true, discordAvisadoEn: true },
   });
-  if (publicar && !previa?.channelId) {
-    throw new Error("SIN_CANAL_DISCORD");
-  }
   // Solo se avisa la primera vez: despublicar y volver a publicar no repite
   // el mensaje.
-  const avisar = publicar && !previa?.discordAvisadoEn;
+  const avisar =
+    publicar &&
+    !previa?.discordAvisadoEn &&
+    (!!previa?.channelId || !!previa?.notificarPrivado);
 
   const noticia = await db.post.update({
     where: { id },
@@ -257,12 +269,17 @@ export async function cambiarPublicacion(id: string, publicar: boolean) {
       publishedAt: publicar ? new Date() : null,
       ...(avisar ? { discordAvisadoEn: new Date() } : {}),
     },
-    select: { slug: true, title: true, excerpt: true, coverImage: true, channelId: true },
+    select: {
+      slug: true,
+      title: true,
+      excerpt: true,
+      coverImage: true,
+      channelId: true,
+      notificarPrivado: true,
+    },
   });
 
-  if (avisar && noticia.channelId) {
-    await avisarPublicacion({ ...noticia, channelId: noticia.channelId });
-  }
+  if (avisar) await avisarPublicacion(noticia);
 
   await apuntar({
     accion: ACCIONES.CONTENIDO,

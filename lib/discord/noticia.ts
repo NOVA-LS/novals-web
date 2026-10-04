@@ -37,3 +37,33 @@ export function construirEmbedNoticia(
     ...(noticia.coverImage ? { image: { url: noticia.coverImage } } : {}),
   };
 }
+
+/**
+ * El embed del canal: título en negrita, la entradilla como cita en negrita,
+ * una frase fija que lleva a la noticia y la portada debajo.
+ *
+ * Distinto del privado a propósito: sin cabecera ni pie, y el título no es un
+ * enlace —el enlace va en la frase fija, igual para todos los comunicados.
+ *
+ * Módulo puro, como `construirEmbedNoticia`.
+ */
+export function construirEmbedCanalNoticia(
+  noticia: { title: string; excerpt: string; coverImage: string | null },
+  url: string,
+): Embed {
+  // Una cita de Discord solo cubre su línea: cada línea de la entradilla
+  // lleva su propio `> ` y su propia negrita.
+  const entradilla = noticia.excerpt
+    .split("\n")
+    .map((linea) => linea.trim())
+    .filter(Boolean)
+    .map((linea) => `> **${linea}**`)
+    .join("\n");
+
+  return {
+    title: noticia.title,
+    description: `${entradilla}\n\n-# Podrás consultar el contenido completo del mensaje en nuestra [página web](${url}).`,
+    color: EMBED_COLOR.neutral,
+    ...(noticia.coverImage ? { image: { url: noticia.coverImage } } : {}),
+  };
+}

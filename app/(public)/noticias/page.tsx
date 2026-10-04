@@ -51,9 +51,11 @@ export default async function NoticiasPage({
                   <Image
                     src={noticia.coverImage}
                     alt=""
-                    width={640}
-                    height={360}
-                    className="aspect-video w-full object-cover"
+                    width={noticia.coverWidth}
+                    height={noticia.coverHeight}
+                    sizes="(min-width: 64rem) 22rem, (min-width: 40rem) 45vw, 100vw"
+                    quality={90}
+                    className="h-auto w-full"
                   />
                 ) : null}
                 <span className="meta flex items-center gap-[var(--space-xs)]">

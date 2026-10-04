@@ -1857,17 +1857,12 @@ select.input option {
   border-inline-start: 0;
 }
 
-/* Portada de una noticia. A su proporción real, no a un 16:9 fijo: forzar el
- * recorte ampliaba o deformaba cualquier imagen que no viniera ya en ese
- * formato. El límite de alto es solo para que una imagen muy vertical no se
- * coma la pantalla entera; por debajo de él, el ancho manda y la proporción
- * se respeta sola. */
-/* Banda ancha y baja, no un recuadro que ocupe media pantalla: es la portada
-   del artículo, el titular y el cuerpo son lo que importa leer primero. */
+/* Portada de una noticia. A su proporción real, entera: un banner con el logo
+ * y un titular dentro pierde justo lo importante si se recorta a un formato
+ * fijo. */
 .portada-noticia {
   width: 100%;
-  aspect-ratio: 21 / 9;
-  object-fit: cover;
+  height: auto;
   border-radius: 1.25rem;
   border: var(--rule-hair) solid var(--color-rule);
 }

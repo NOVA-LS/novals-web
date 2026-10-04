@@ -16,6 +16,7 @@ type Noticia = {
   published: boolean;
   coverImage: string | null;
   channelId: string | null;
+  notificarPrivado: boolean;
 };
 
 /** En qué categoría cae un canal ya elegido, para preseleccionar el primer desplegable. */
@@ -164,12 +165,12 @@ export function EditorNoticia({
 
       <div className="field">
         <label className="field__label" htmlFor="categoriaDiscord">
-          Canal de Discord
+          Canal de Discord (opcional)
         </label>
         <p className="field__help">
           {canales.length > 0
-            ? "Al publicarse, se avisa en el canal elegido."
-            : "No se pudo traer la lista de canales de Discord. Sin canal no se puede publicar."}
+            ? "Al publicarse, se avisa en el canal elegido. Sin canal, no se avisa en ninguno."
+            : "No se pudo traer la lista de canales de Discord. Puedes publicar igualmente, sin avisar en ningún canal."}
         </p>
         <div className="grid grid-cols-1 gap-[var(--space-sm)] sm:grid-cols-2">
           <Desplegable
@@ -200,6 +201,23 @@ export function EditorNoticia({
             }))}
           />
         </div>
+      </div>
+
+      <div className="field">
+        <label className="flex items-center gap-[var(--space-xs)] text-sm text-[var(--color-muted)]">
+          <input
+            type="checkbox"
+            name="notificarPrivado"
+            defaultChecked={noticia?.notificarPrivado ?? true}
+            disabled={guardando}
+            className="size-4 accent-[var(--color-ink)]"
+          />
+          Notificar por privado a los usuarios
+        </label>
+        <p className="field__help">
+          Al publicarse, se manda un mensaje privado a quien tenga activados los avisos de
+          noticias. Solo se envía la primera vez que se publica.
+        </p>
       </div>
 
       <label className="flex items-center gap-[var(--space-xs)] text-sm text-[var(--color-muted)]">
