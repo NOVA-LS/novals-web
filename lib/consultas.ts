@@ -95,6 +95,7 @@ export const paginaDeNoticias = unstable_cache(
 );
 
 export type NoticiaCompleta = {
+  id: string;
   title: string;
   excerpt: string;
   coverImage: string | null;
@@ -121,6 +122,7 @@ export const noticiaPorSlug = unstable_cache(
     const noticia = await db.post.findFirst({
       where: { slug, published: true },
       select: {
+        id: true,
         title: true,
         excerpt: true,
         coverImage: true,
@@ -134,6 +136,7 @@ export const noticiaPorSlug = unstable_cache(
     if (!noticia) return null;
 
     return {
+      id: noticia.id,
       title: noticia.title,
       excerpt: noticia.excerpt,
       coverImage: noticia.coverImage,
@@ -144,7 +147,8 @@ export const noticiaPorSlug = unstable_cache(
       autor: noticia.author,
     };
   },
-  ["noticia"],
+  // v2: las entradas anteriores no traen `id` y se servirían hasta una hora.
+  ["noticia-v2"],
   { tags: [ETIQUETA.noticias], revalidate: UNA_HORA },
 );
 

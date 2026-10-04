@@ -6,6 +6,10 @@ import { ArrowLeft, CalendarDays } from "lucide-react";
 import { noticiaPorSlug } from "@/lib/consultas";
 import { Avatar } from "@/components/ui/avatar";
 import { RolStaff } from "@/components/ui/rol";
+import { currentUser } from "@/lib/guards";
+import { estadoInteraccion } from "@/lib/interaccion";
+import { Encuesta } from "@/components/noticias/encuesta";
+import { BotonApoyo } from "@/components/noticias/boton-apoyo";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +42,12 @@ export default async function NoticiaPage({
   // La misma llamada que en generateMetadata: la segunda sale de la caché.
   const noticia = await noticiaPorSlug(slug);
   if (!noticia) notFound();
+
+  // Votos y apoyos no entran en la caché de la noticia: cambian en cada visita y
+  // dependen de quién mira.
+  const usuario = await currentUser();
+  const interaccion = await estadoInteraccion(noticia.id, usuario?.id ?? null);
+  const hrefEntrar = `/entrar?callbackUrl=${encodeURIComponent(`/noticias/${slug}`)}`;
 
   // Todo a la misma anchura: portada, titular y cuerpo. Antes el artículo medía
   // 72rem y el texto 68ch, así que la columna quedaba descolgada a la izquierda
@@ -94,6 +104,24 @@ export default async function NoticiaPage({
         className="prose prose--articulo"
         dangerouslySetInnerHTML={{ __html: noticia.html }}
       />
+
+      <footer className="grid gap-[var(--space-lg)]">
+        {interaccion.encuesta ? (
+          <Encuesta
+            encuesta={interaccion.encuesta}
+            logueado={usuario !== null}
+            hrefEntrar={hrefEntrar}
+          />
+        ) : null}
+
+        <BotonApoyo
+          postId={noticia.id}
+          apoyos={interaccion.apoyos}
+          apoyado={interaccion.apoyado}
+          logueado={usuario !== null}
+          hrefEntrar={hrefEntrar}
+        />
+      </footer>
     </article>
   );
 }

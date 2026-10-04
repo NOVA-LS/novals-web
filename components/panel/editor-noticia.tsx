@@ -8,6 +8,7 @@ import { MAX_IMAGEN_MB } from "@/lib/limites";
 import { Boton } from "@/components/ui/button";
 import { CampoArchivo } from "@/components/ui/campo-archivo";
 import { Desplegable } from "@/components/ui/desplegable";
+import { EditorEncuesta, type EncuestaGuardada } from "@/components/panel/editor-encuesta";
 
 type Noticia = {
   id: string;
@@ -19,6 +20,9 @@ type Noticia = {
   channelId: string | null;
   roleId: string | null;
   notificarPrivado: boolean;
+  encuesta: EncuestaGuardada | null;
+  /** Cuándo se avisó la última vez, ya formateado; nulo si nunca se avisó. */
+  avisadaEn: string | null;
 };
 
 /** En qué categoría cae un canal ya elegido, para preseleccionar el primer desplegable. */
@@ -47,6 +51,14 @@ export function EditorNoticia({
   );
   const [channelId, setChannelId] = useState(noticia?.channelId ?? "");
   const [roleId, setRoleId] = useState(noticia?.roleId ?? "");
+  const [publicada, setPublicada] = useState(noticia?.published ?? false);
+  const [privado, setPrivado] = useState(noticia?.notificarPrivado ?? true);
+
+  const [reavisar, setReavisar] = useState(false);
+
+  // Ya se avisó y la noticia está en borrador: al publicarla, el aviso es opcional.
+  const puedeReavisar =
+    !!noticia?.avisadaEn && !noticia.published && publicada && (channelId !== "" || privado);
 
   const canalesDeLaCategoria = useMemo(
     () => canales.find((grupo) => grupo.categoria.id === categoriaId)?.canales ?? [],
@@ -75,6 +87,18 @@ export function EditorNoticia({
     evento.preventDefault();
     const datos = new FormData(evento.currentTarget);
     setError(null);
+
+    // El `datetime-local` no lleva zona horaria: se manda ya en ISO para que el
+    // servidor no la interprete con la suya.
+    const cierre = String(datos.get("pollClosesAt") ?? "");
+    if (cierre) {
+      const fecha = new Date(cierre);
+      if (Number.isNaN(fecha.getTime())) {
+        setError("La fecha de cierre de la encuesta no es válida.");
+        return;
+      }
+      datos.set("pollClosesAt", fecha.toISOString());
+    }
 
     empezar(async () => {
       const resultado = await guardarNoticia(noticia?.id ?? null, datos);
@@ -168,6 +192,8 @@ export function EditorNoticia({
         ) : null}
       </div>
 
+      <EditorEncuesta encuesta={noticia?.encuesta ?? null} disabled={guardando} />
+
       <div className="field">
         <label className="field__label" htmlFor="categoriaDiscord">
           Canal de Discord (opcional)
@@ -200,10 +226,13 @@ export function EditorNoticia({
             disabled={guardando || canalesDeLaCategoria.length === 0}
             placeholder="Elige un canal…"
             alCambiar={setChannelId}
-            opciones={canalesDeLaCategoria.map((canal) => ({
-              valor: canal.id,
-              etiqueta: `#${canal.name}`,
-            }))}
+            opciones={[
+              { valor: "", etiqueta: "Sin canal" },
+              ...canalesDeLaCategoria.map((canal) => ({
+                valor: canal.id,
+                etiqueta: `#${canal.name}`,
+              })),
+            ]}
           />
         </div>
       </div>
@@ -236,7 +265,8 @@ export function EditorNoticia({
           <input
             type="checkbox"
             name="notificarPrivado"
-            defaultChecked={noticia?.notificarPrivado ?? true}
+            checked={privado}
+            onChange={(evento) => setPrivado(evento.target.checked)}
             disabled={guardando}
             className="size-4 accent-[var(--color-ink)]"
           />
@@ -244,7 +274,7 @@ export function EditorNoticia({
         </label>
         <p className="field__help">
           Al publicarse, se manda un mensaje privado a quien tenga activados los avisos de
-          noticias. Solo se envía la primera vez que se publica.
+          noticias. Si ya se avisó antes, al volver a publicar puedes elegir si avisar otra vez.
         </p>
       </div>
 
@@ -252,12 +282,33 @@ export function EditorNoticia({
         <input
           type="checkbox"
           name="published"
-          defaultChecked={noticia?.published}
+          checked={publicada}
+          onChange={(evento) => setPublicada(evento.target.checked)}
           disabled={guardando}
           className="size-4 accent-[var(--color-ink)]"
         />
         Publicada
       </label>
+
+      {puedeReavisar ? (
+        <div className="field" role="status">
+          <label className="flex items-center gap-[var(--space-xs)] text-sm text-[var(--color-muted)]">
+            <input
+              type="checkbox"
+              name="reavisar"
+              checked={reavisar}
+              onChange={(evento) => setReavisar(evento.target.checked)}
+              disabled={guardando}
+              className="size-4 accent-[var(--color-ink)]"
+            />
+            Volver a avisar
+          </label>
+          <p className="field__help">
+            Esta noticia ya se avisó el {noticia?.avisadaEn} (canal y/o privados). Si la publicas
+            sin marcar esta casilla, no se vuelve a avisar.
+          </p>
+        </div>
+      ) : null}
 
       {error ? (
         <p className="field__error" role="alert">

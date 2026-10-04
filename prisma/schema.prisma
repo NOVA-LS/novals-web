@@ -86,6 +86,8 @@ model User {
   auditoria       AuditLog[]          @relation("auditor")
   ticketsLlevados Ticket[]      @relation("ticketAsignado")
   ticketMessages  TicketMessage[]
+  pollVotes       PollVote[]
+  supports        PostSupport[]
 }
 
 /// Equipo al que pertenece alguien del staff. Uno por fila: se llevan varios.
@@ -234,15 +236,71 @@ model Post {
   /// activado. Independiente del canal: se puede avisar por uno, por el otro,
   /// por los dos o por ninguno.
   notificarPrivado Boolean @default(true)
-  /// Cuándo se avisó a Discord. Una vez puesta, no se vuelve a avisar aunque
-  /// la noticia se despublique y se vuelva a publicar.
+  /// Cuándo se avisó a Discord por última vez. Una vez puesta, solo se vuelve a
+  /// avisar al republicar la noticia y si el admin lo pide expresamente.
   discordAvisadoEn DateTime?
   authorId    String
   author      User      @relation(fields: [authorId], references: [id])
+  poll        PostPoll?
+  supports    PostSupport[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   @@index([published, publishedAt])
+}
+
+/// Encuesta opcional de una noticia. Una por noticia.
+model PostPoll {
+  id        String       @id @default(cuid())
+  postId    String       @unique
+  post      Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  /// Pregunta opcional; sin ella solo se muestran las opciones.
+  question  String?
+  /// Pasada esta fecha no se puede votar. Sin fecha, abierta mientras la
+  /// noticia esté publicada.
+  closesAt  DateTime?
+  options   PollOption[]
+  votes     PollVote[]
+  createdAt DateTime     @default(now())
+}
+
+model PollOption {
+  id       String     @id @default(cuid())
+  pollId   String
+  poll     PostPoll   @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  label    String
+  position Int
+  votes    PollVote[]
+
+  @@index([pollId, position])
+}
+
+/// Un voto por usuario y encuesta: cambiar de opinión actualiza la fila.
+model PollVote {
+  id        String     @id @default(cuid())
+  pollId    String
+  poll      PostPoll   @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  optionId  String
+  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([pollId, userId])
+  @@index([optionId])
+}
+
+/// "Me gusta" de una noticia. Uno por usuario.
+model PostSupport {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
 }
 
 model Submission {

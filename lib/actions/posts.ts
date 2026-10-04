@@ -6,10 +6,16 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { ETIQUETA } from "@/lib/consultas";
 import { ACCIONES, apuntar } from "@/lib/auditoria";
-import { guardarImagen } from "@/lib/uploads";
+import { borrarImagen, guardarImagen } from "@/lib/uploads";
 import { slugify } from "@/lib/utils";
 import { renderMarkdown } from "@/lib/markdown";
-import { esquemaNoticia } from "@/lib/noticias";
+import { debeAvisar, esquemaNoticia } from "@/lib/noticias";
+import {
+  cambiosPermitidos,
+  cierreValido,
+  leerEncuestaDelFormulario,
+  type EncuestaValida,
+} from "@/lib/encuesta";
 import { enviarDM, listarCanales, listarRoles, publicarEnCanal } from "@/lib/discord";
 import type { Embed } from "@/lib/embed";
 import { agruparPorCategoria, type GrupoDeCanales } from "@/lib/discord/canales";
@@ -131,6 +137,45 @@ async function slugLibre(titulo: string, idActual?: string) {
   }
 }
 
+/**
+ * Deja la encuesta de la noticia como pide el editor. Sin encuesta, borra la
+ * que hubiera (con sus votos). Los ids que llegan ya se comprobaron contra la
+ * encuesta guardada en `cambiosPermitidos`; aun así cada escritura filtra por
+ * `pollId`, así que un id ajeno nunca toca otra encuesta.
+ *
+ * Sin transacción interactiva: el proyecto no usa ninguna con el adaptador de
+ * SQLite. Las escrituras de opciones van en un lote.
+ */
+async function sincronizarEncuesta(postId: string, encuesta: EncuestaValida | null) {
+  if (!encuesta) {
+    await db.postPoll.deleteMany({ where: { postId } });
+    return;
+  }
+
+  const poll = await db.postPoll.upsert({
+    where: { postId },
+    create: { postId, question: encuesta.question, closesAt: encuesta.closesAt },
+    update: { question: encuesta.question ?? null, closesAt: encuesta.closesAt ?? null },
+    select: { id: true },
+  });
+
+  const conservadas = encuesta.options.flatMap((opcion) => (opcion.id ? [opcion.id] : []));
+
+  await db.$transaction([
+    db.pollOption.deleteMany({ where: { pollId: poll.id, id: { notIn: conservadas } } }),
+    ...encuesta.options.map((opcion, posicion) =>
+      opcion.id
+        ? db.pollOption.updateMany({
+            where: { id: opcion.id, pollId: poll.id },
+            data: { label: opcion.label, position: posicion },
+          })
+        : db.pollOption.create({
+            data: { pollId: poll.id, label: opcion.label, position: posicion },
+          }),
+    ),
+  ]);
+}
+
 export async function guardarNoticia(
   id: string | null,
   datos: FormData,
@@ -145,10 +190,37 @@ export async function guardarNoticia(
     notificarPrivado: datos.get("notificarPrivado") === "on",
     channelId: datos.get("channelId") ?? "",
     roleId: datos.get("roleId") ?? "",
+    encuesta: leerEncuestaDelFormulario(datos),
   });
 
   if (!parsed.success) {
     return { ok: false, mensaje: parsed.error.issues[0].message };
+  }
+
+  // La encuesta guardada se lee antes de escribir nada: si el cambio no vale,
+  // la noticia tampoco se toca.
+  const encuestaPrevia = id
+    ? await db.postPoll.findUnique({
+        where: { postId: id },
+        select: {
+          options: { orderBy: { position: "asc" }, select: { id: true, label: true } },
+          _count: { select: { votes: true } },
+        },
+      })
+    : null;
+
+  const encuestaNueva = parsed.data.encuesta ?? null;
+  if (encuestaNueva) {
+    if (!cierreValido(encuestaNueva.closesAt, !encuestaPrevia)) {
+      return { ok: false, mensaje: "La fecha de cierre de la encuesta ya ha pasado." };
+    }
+
+    const cambios = cambiosPermitidos(
+      encuestaPrevia?.options ?? [],
+      encuestaNueva.options,
+      (encuestaPrevia?._count.votes ?? 0) > 0,
+    );
+    if (!cambios.ok) return { ok: false, mensaje: cambios.mensaje };
   }
 
   let portada: Portada | undefined;
@@ -161,7 +233,7 @@ export async function guardarNoticia(
   const previa = id
     ? await db.post.findUnique({
         where: { id },
-        select: { publishedAt: true, coverImage: true, discordAvisadoEn: true },
+        select: { publishedAt: true, coverImage: true, published: true, discordAvisadoEn: true },
       })
     : null;
 
@@ -172,19 +244,25 @@ export async function guardarNoticia(
   }
 
   // Un rol sin canal no tiene dónde mencionarse: no se guarda.
-  const { channelId, roleId: rol, ...campos } = parsed.data;
+  // La encuesta ya se leyó arriba como `encuestaNueva`; aquí solo se aparta para
+  // que no se esparza dentro de los datos de la noticia.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { channelId, roleId: rol, encuesta: _encuesta, ...campos } = parsed.data;
   const roleId = channelId ? rol : undefined;
   const slug = await slugLibre(campos.title, id ?? undefined);
   const publicando = campos.published;
-  // Sin canal y sin privado no hay nada que avisar: no se da por avisada, para
-  // que si luego se activa alguno de los dos, salga la primera vez que se guarde.
-  const hayAviso = !!channelId || campos.notificarPrivado;
+  // Ya avisada solo se vuelve a avisar al republicar y si el editor lo pide con
+  // la casilla "Volver a avisar".
+  const avisar = debeAvisar({
+    publicando,
+    estabaPublicada: previa?.published ?? false,
+    yaAvisada: !!previa?.discordAvisadoEn,
+    canal: !!channelId,
+    privado: campos.notificarPrivado,
+    reavisar: datos.get("reavisar") === "on",
+  });
 
   if (id) {
-    // Solo se avisa la primera vez: despublicar y volver a publicar no repite
-    // el mensaje, aunque el resto de la noticia haya cambiado.
-    const avisar = publicando && hayAviso && !previa?.discordAvisadoEn;
-
     await db.post.update({
       where: { id },
       data: {
@@ -200,6 +278,8 @@ export async function guardarNoticia(
       },
     });
 
+    await sincronizarEncuesta(id, encuestaNueva);
+
     if (avisar) {
       await avisarPublicacion({
         ...campos,
@@ -210,7 +290,8 @@ export async function guardarNoticia(
       });
     }
   } else {
-    await db.post.create({
+    const creada = await db.post.create({
+      select: { id: true },
       data: {
         ...campos,
         channelId,
@@ -221,11 +302,13 @@ export async function guardarNoticia(
         coverHeight: portada?.height,
         authorId: autor.id,
         publishedAt: publicando ? new Date() : null,
-        ...(publicando && hayAviso ? { discordAvisadoEn: new Date() } : {}),
+        ...(avisar ? { discordAvisadoEn: new Date() } : {}),
       },
     });
 
-    if (publicando && hayAviso) {
+    await sincronizarEncuesta(creada.id, encuestaNueva);
+
+    if (avisar) {
       await avisarPublicacion({
         ...campos,
         slug,
@@ -272,19 +355,27 @@ export async function listarRolesDiscord(): Promise<RolDiscord[]> {
   return roles;
 }
 
-export async function cambiarPublicacion(id: string, publicar: boolean) {
+export async function cambiarPublicacion(id: string, publicar: boolean, reavisar = false) {
   const autor = await requireUser("ADMIN");
 
   const previa = await db.post.findUnique({
     where: { id },
-    select: { channelId: true, notificarPrivado: true, discordAvisadoEn: true },
+    select: {
+      channelId: true,
+      notificarPrivado: true,
+      discordAvisadoEn: true,
+      published: true,
+    },
   });
-  // Solo se avisa la primera vez: despublicar y volver a publicar no repite
-  // el mensaje.
-  const avisar =
-    publicar &&
-    !previa?.discordAvisadoEn &&
-    (!!previa?.channelId || !!previa?.notificarPrivado);
+  // Ya avisada, la lista pregunta antes de volver a avisar y manda `reavisar`.
+  const avisar = debeAvisar({
+    publicando: publicar,
+    estabaPublicada: previa?.published ?? false,
+    yaAvisada: !!previa?.discordAvisadoEn,
+    canal: !!previa?.channelId,
+    privado: !!previa?.notificarPrivado,
+    reavisar,
+  });
 
   const noticia = await db.post.update({
     where: { id },
@@ -321,4 +412,36 @@ export async function cambiarPublicacion(id: string, publicar: boolean) {
   revalidatePath("/noticias");
   revalidatePath(`/noticias/${noticia.slug}`);
   revalidatePath("/panel/noticias");
+}
+
+/**
+ * Borrado definitivo, solo para `ADMIN`. La encuesta, los votos y los apoyos
+ * caen con la noticia (cascade). La portada se borra del disco al final y sin
+ * que un fallo ahí deshaga nada: sobra un fichero, no un registro.
+ */
+export async function eliminarNoticia(id: string): Promise<ResultadoNoticia> {
+  const actor = await requireUser("ADMIN");
+
+  const noticia = await db.post.findUnique({
+    where: { id },
+    select: { slug: true, title: true, coverImage: true },
+  });
+  if (!noticia) return { ok: false, mensaje: "Esa noticia ya no existe." };
+
+  await db.post.delete({ where: { id } });
+  if (noticia.coverImage) await borrarImagen(noticia.coverImage);
+
+  await apuntar({
+    accion: ACCIONES.CONTENIDO,
+    actor,
+    objetivo: `Noticia «${noticia.title}»`,
+    detalle: "Eliminada",
+  });
+
+  updateTag(ETIQUETA.noticias);
+  revalidatePath("/");
+  revalidatePath("/noticias");
+  revalidatePath(`/noticias/${noticia.slug}`);
+  revalidatePath("/panel/noticias");
+  return { ok: true };
 }

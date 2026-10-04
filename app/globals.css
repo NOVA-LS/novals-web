@@ -1946,3 +1946,68 @@ select.input option {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ---------- Encuesta de las noticias ---------- */
+
+.encuesta {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.encuesta__opcion {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: var(--rule-hair) solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  text-align: left;
+  overflow: hidden;
+  transition: border-color var(--dur-micro) var(--ease-out);
+}
+
+.encuesta__opcion:not(:disabled) {
+  cursor: pointer;
+}
+
+.encuesta__opcion:not(:disabled):hover,
+.encuesta__opcion[aria-pressed="true"] {
+  border-color: var(--color-ink);
+}
+
+/* La barra es el resultado: relleno blanco hasta el porcentaje, por detrás del texto. */
+.encuesta__barra {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--porcentaje);
+  background: var(--color-ink);
+  transition: width var(--dur-micro) var(--ease-out);
+}
+
+/* Nombre a la izquierda y porcentaje al final. */
+.encuesta__contenido {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0.75rem 1.25rem;
+}
+
+/* La copia oscura cubre la fila entera pero solo se ve sobre la barra. */
+.encuesta__contenido--sobre-barra {
+  position: absolute;
+  inset: 0;
+  color: var(--color-paper);
+  clip-path: inset(0 calc(100% - var(--porcentaje)) 0 0);
+  transition: clip-path var(--dur-micro) var(--ease-out);
+  pointer-events: none;
+}
+
+.encuesta__contenido--sobre-barra .meta {
+  color: inherit;
+  opacity: 0.7;
+}

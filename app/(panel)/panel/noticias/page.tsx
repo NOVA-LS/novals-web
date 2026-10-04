@@ -3,13 +3,14 @@ import type { Metadata } from "next";
 import { Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
-import { cambiarPublicacion } from "@/lib/actions/posts";
 import { formatearFechaHora } from "@/lib/utils";
 import { leerPagina, paginar, POR_PAGINA } from "@/lib/paginacion";
 import { Paginacion } from "@/components/ui/paginacion";
 import { Badge } from "@/components/ui/badge";
-import { Boton, EnlaceBoton } from "@/components/ui/button";
+import { EnlaceBoton } from "@/components/ui/button";
 import { CabeceraPanel } from "@/components/panel/cabecera-panel";
+import { EliminarNoticia } from "@/components/panel/eliminar-noticia";
+import { PublicarNoticia } from "@/components/panel/publicar-noticia";
 
 export const metadata: Metadata = { title: "Noticias del panel" };
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export default async function PanelNoticiasPage({
 }: {
   searchParams: Promise<{ p?: string }>;
 }) {
-  await requireUser("ADMIN");
+  const usuario = await requireUser("ADMIN");
   const { p } = await searchParams;
 
   // Las cuentas de la cabecera son de todas, no de las de esta página.
@@ -45,6 +46,9 @@ export default async function PanelNoticiasPage({
       published: true,
       publishedAt: true,
       createdAt: true,
+      channelId: true,
+      notificarPrivado: true,
+      discordAvisadoEn: true,
       author: { select: { username: true } },
     },
   });
@@ -100,16 +104,17 @@ export default async function PanelNoticiasPage({
                     Ver
                   </EnlaceBoton>
                 ) : null}
-                <form
-                  action={async () => {
-                    "use server";
-                    await cambiarPublicacion(noticia.id, !noticia.published);
-                  }}
-                >
-                  <Boton type="submit">
-                    {noticia.published ? "Despublicar" : "Publicar"}
-                  </Boton>
-                </form>
+                <PublicarNoticia
+                  id={noticia.id}
+                  publicada={noticia.published}
+                  avisadaEn={
+                    noticia.discordAvisadoEn ? formatearFechaHora(noticia.discordAvisadoEn) : null
+                  }
+                  hayAviso={!!noticia.channelId || noticia.notificarPrivado}
+                />
+                {usuario.role === "ADMIN" ? (
+                  <EliminarNoticia id={noticia.id} titulo={noticia.title} />
+                ) : null}
               </div>
             </li>
           ))}
