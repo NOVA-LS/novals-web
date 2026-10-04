@@ -1,6 +1,7 @@
 import "server-only";
 import type { Embed } from "@/lib/embed";
 import type { CanalDiscord } from "@/lib/discord/canales";
+import type { RolDiscord } from "@/lib/discord/menciones";
 
 const API = "https://discord.com/api/v10";
 
@@ -321,13 +322,50 @@ export async function listarCanales(): Promise<CanalDiscord[]> {
 }
 
 /**
- * Publica un embed en un canal cualquiera del servidor —a diferencia de
- * `notifyStaff`, que siempre va al mismo webhook fijo de staff.
+ * Los roles del servidor, para elegir a cuál se menciona al publicar una
+ * noticia. Nunca lanza: sin bot o sin servidor, o ante cualquier fallo, se
+ * queda sin roles que ofrecer.
+ */
+export async function listarRoles(): Promise<RolDiscord[]> {
+  const token = process.env.DISCORD_BOT_TOKEN;
+  const servidor = guild();
+  if (!token || !servidor) return [];
+
+  try {
+    const respuesta = await fetchConReintento(`${API}/guilds/${servidor}/roles`, {
+      headers: cabeceras(token),
+    });
+
+    if (!respuesta.ok) {
+      console.error(
+        `No se pudo listar los roles del servidor: ${respuesta.status} ${await respuesta.text()}`,
+      );
+      return [];
+    }
+
+    const cuerpo = (await respuesta.json()) as {
+      id: string;
+      name: string;
+      position: number;
+      managed: boolean;
+    }[];
+
+    return cuerpo.map(({ id, name, position, managed }) => ({ id, name, position, managed }));
+  } catch (error) {
+    console.error("Fallo de red al listar los roles de Discord", error);
+    return [];
+  }
+}
+
+/**
+ * Publica un mensaje en un canal cualquiera del servidor —a diferencia de
+ * `notifyStaff`, que siempre va al mismo webhook fijo de staff. El cuerpo viene
+ * armado por quien llama: un embed, o un mensaje de componentes.
  *
  * Nunca lanza: quien publica una noticia no debe quedarse a medias porque
  * Discord esté caído. El fallo solo se registra.
  */
-export async function publicarEnCanal(canalId: string, embed: Embed): Promise<void> {
+export async function publicarEnCanal(canalId: string, cuerpo: object): Promise<void> {
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) return;
 
@@ -335,7 +373,7 @@ export async function publicarEnCanal(canalId: string, embed: Embed): Promise<vo
     const respuesta = await fetchConReintento(`${API}/channels/${canalId}/messages`, {
       method: "POST",
       headers: cabeceras(token),
-      body: JSON.stringify({ embeds: [embed] }),
+      body: JSON.stringify(cuerpo),
     });
 
     if (!respuesta.ok) {

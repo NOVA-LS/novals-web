@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
-import { listarCanalesDiscord } from "@/lib/actions/posts";
+import { listarCanalesDiscord, listarRolesDiscord } from "@/lib/actions/posts";
 import { EditorNoticia } from "@/components/panel/editor-noticia";
 import { CabeceraPanel } from "@/components/panel/cabecera-panel";
 
@@ -17,7 +17,7 @@ export default async function EditarNoticiaPage({
   await requireUser("ADMIN");
   const { id } = await params;
 
-  const [noticia, canales] = await Promise.all([
+  const [noticia, canales, roles] = await Promise.all([
     db.post.findUnique({
       where: { id },
       select: {
@@ -28,10 +28,12 @@ export default async function EditarNoticiaPage({
         published: true,
         coverImage: true,
         channelId: true,
+        roleId: true,
         notificarPrivado: true,
       },
     }),
     listarCanalesDiscord(),
+    listarRolesDiscord(),
   ]);
 
   if (!noticia) notFound();
@@ -43,7 +45,7 @@ export default async function EditarNoticiaPage({
         descripcion={noticia.title}
         volver={{ href: "/panel/noticias", texto: "Noticias" }}
       />
-      <EditorNoticia noticia={noticia} canales={canales} />
+      <EditorNoticia noticia={noticia} canales={canales} roles={roles} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/guards";
-import { listarCanalesDiscord } from "@/lib/actions/posts";
+import { listarCanalesDiscord, listarRolesDiscord } from "@/lib/actions/posts";
 import { EditorNoticia } from "@/components/panel/editor-noticia";
 import { CabeceraPanel } from "@/components/panel/cabecera-panel";
 
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NuevaNoticiaPage() {
   await requireUser("ADMIN");
-  const canales = await listarCanalesDiscord();
+  const [canales, roles] = await Promise.all([listarCanalesDiscord(), listarRolesDiscord()]);
 
   return (
     <div className="shell grid max-w-[64rem] gap-[var(--space-lg)] py-[var(--space-xl)]">
@@ -17,7 +17,7 @@ export default async function NuevaNoticiaPage() {
         titulo="Nueva noticia"
         volver={{ href: "/panel/noticias", texto: "Noticias" }}
       />
-      <EditorNoticia canales={canales} />
+      <EditorNoticia canales={canales} roles={roles} />
     </div>
   );
 }

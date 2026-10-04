@@ -1,3 +1,4 @@
+import { mencionTapada } from "@/lib/discord/menciones";
 import { EMBED_COLOR, type Embed } from "@/lib/embed";
 
 /**
@@ -38,19 +39,30 @@ export function construirEmbedNoticia(
   };
 }
 
+/** Banderas de un mensaje cuyo contenido son componentes en vez de texto y embeds. */
+const MENSAJE_DE_COMPONENTES = 1 << 15;
+
+const COMPONENTE = { contenedor: 17, texto: 10, galeria: 12 } as const;
+
 /**
- * El embed del canal: título en negrita, la entradilla como cita en negrita,
- * una frase fija que lleva a la noticia y la portada debajo.
+ * El mensaje del canal: un contenedor con el título en grande, la entradilla
+ * como cita en negrita, una frase fija que lleva a la noticia y la portada
+ * debajo; y, fuera del contenedor y debajo de todo, la mención al rol tapada.
  *
- * Distinto del privado a propósito: sin cabecera ni pie, y el título no es un
- * enlace —el enlace va en la frase fija, igual para todos los comunicados.
+ * No es un embed porque un embed no puede llevar texto debajo de su cuadro ni
+ * notificar con lo que lleva dentro. Un mensaje de componentes puede las dos
+ * cosas, pero entonces no admite `content` ni `embeds`.
+ *
+ * Distinto del privado a propósito: el título no es un enlace —el enlace va en
+ * la frase fija, igual para todos los comunicados.
  *
  * Módulo puro, como `construirEmbedNoticia`.
  */
-export function construirEmbedCanalNoticia(
+export function construirMensajeCanalNoticia(
   noticia: { title: string; excerpt: string; coverImage: string | null },
   url: string,
-): Embed {
+  rolId?: string | null,
+) {
   // Una cita de Discord solo cubre su línea: cada línea de la entradilla
   // lleva su propio `> ` y su propia negrita.
   const entradilla = noticia.excerpt
@@ -60,10 +72,29 @@ export function construirEmbedCanalNoticia(
     .map((linea) => `> **${linea}**`)
     .join("\n");
 
+  const mencion = mencionTapada(rolId);
+
   return {
-    title: noticia.title,
-    description: `${entradilla}\n\n-# Podrás consultar el contenido completo del mensaje en nuestra [página web](${url}).`,
-    color: EMBED_COLOR.neutral,
-    ...(noticia.coverImage ? { image: { url: noticia.coverImage } } : {}),
+    flags: MENSAJE_DE_COMPONENTES,
+    components: [
+      {
+        type: COMPONENTE.contenedor,
+        accent_color: EMBED_COLOR.neutral,
+        components: [
+          { type: COMPONENTE.texto, content: `## ${noticia.title}` },
+          {
+            type: COMPONENTE.texto,
+            content: `${entradilla}\n\n-# Podrás consultar el contenido completo del mensaje en nuestra [página web](${url}).`,
+          },
+          ...(noticia.coverImage
+            ? [{ type: COMPONENTE.galeria, items: [{ media: { url: noticia.coverImage } }] }]
+            : []),
+        ],
+      },
+      ...(mencion ? [{ type: COMPONENTE.texto, content: mencion }] : []),
+    ],
+    // Solo ese rol: nada de lo que lleve el título o la entradilla puede acabar
+    // mencionando a `@everyone` ni a otros.
+    allowed_mentions: { parse: [], roles: mencion && rolId ? [rolId] : [] },
   };
 }

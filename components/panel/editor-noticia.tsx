@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { guardarNoticia, previsualizarMarkdown } from "@/lib/actions/posts";
 import type { GrupoDeCanales } from "@/lib/discord/canales";
+import type { RolDiscord } from "@/lib/discord/menciones";
 import { MAX_IMAGEN_MB } from "@/lib/limites";
 import { Boton } from "@/components/ui/button";
 import { CampoArchivo } from "@/components/ui/campo-archivo";
@@ -16,6 +17,7 @@ type Noticia = {
   published: boolean;
   coverImage: string | null;
   channelId: string | null;
+  roleId: string | null;
   notificarPrivado: boolean;
 };
 
@@ -29,9 +31,11 @@ function categoriaDelCanal(grupos: GrupoDeCanales[], channelId: string | null) {
 export function EditorNoticia({
   noticia,
   canales,
+  roles,
 }: {
   noticia?: Noticia;
   canales: GrupoDeCanales[];
+  roles: RolDiscord[];
 }) {
   const [contenido, setContenido] = useState(noticia?.contentMd ?? "");
   const [vistaPrevia, setVistaPrevia] = useState(false);
@@ -42,6 +46,7 @@ export function EditorNoticia({
     () => categoriaDelCanal(canales, noticia?.channelId ?? null) ?? "",
   );
   const [channelId, setChannelId] = useState(noticia?.channelId ?? "");
+  const [roleId, setRoleId] = useState(noticia?.roleId ?? "");
 
   const canalesDeLaCategoria = useMemo(
     () => canales.find((grupo) => grupo.categoria.id === categoriaId)?.canales ?? [],
@@ -201,6 +206,29 @@ export function EditorNoticia({
             }))}
           />
         </div>
+      </div>
+
+      <div className="field">
+        <label className="field__label" htmlFor="roleId">
+          Rol a mencionar (opcional)
+        </label>
+        <p className="field__help">
+          {roles.length > 0
+            ? "Debajo del anuncio del canal se menciona a este rol, tapado con un spoiler. Hace falta elegir un canal; sin canal no se menciona a nadie. El rol tiene que ser mencionable, o el bot tener permiso para mencionar a todos."
+            : "No se pudo traer la lista de roles de Discord."}
+        </p>
+        <Desplegable
+          id="roleId"
+          name="roleId"
+          valor={roleId}
+          disabled={guardando || roles.length === 0 || !channelId}
+          placeholder="Sin mención"
+          alCambiar={setRoleId}
+          opciones={[
+            { valor: "", etiqueta: "Sin mención" },
+            ...roles.map((rol) => ({ valor: rol.id, etiqueta: `@${rol.name}` })),
+          ]}
+        />
       </div>
 
       <div className="field">

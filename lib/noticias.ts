@@ -19,4 +19,9 @@ export const esquemaNoticia = z.object({
     .trim()
     .transform((valor) => (valor === "" ? undefined : valor))
     .optional(),
+  roleId: z
+    .string()
+    .trim()
+    .transform((valor) => (valor === "" ? undefined : valor))
+    .optional(),
 });

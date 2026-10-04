@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { construirEmbedCanalNoticia, construirEmbedNoticia } from "@/lib/discord/noticia";
+import { construirEmbedNoticia, construirMensajeCanalNoticia } from "@/lib/discord/noticia";
 import { EMBED_COLOR } from "@/lib/embed";
 
 describe("construirEmbedNoticia", () => {
@@ -84,7 +84,7 @@ describe("construirEmbedNoticia", () => {
   });
 });
 
-describe("construirEmbedCanalNoticia", () => {
+describe("construirMensajeCanalNoticia", () => {
   const noticia = {
     title: "¡Tú decides tu propio camino!",
     excerpt: "NOVA",
@@ -92,32 +92,57 @@ describe("construirEmbedCanalNoticia", () => {
   };
   const url = "https://nova.example/noticias/camino";
 
-  it("lleva el título, la entradilla en cita y negrita, y la frase fija con el enlace", () => {
-    const embed = construirEmbedCanalNoticia(noticia, url);
+  it("es un mensaje de componentes: ni `content` ni `embeds`", () => {
+    const mensaje = construirMensajeCanalNoticia(noticia, url);
 
-    expect(embed.title).toBe("¡Tú decides tu propio camino!");
-    expect(embed.description).toBe(
-      "> **NOVA**\n\n-# Podrás consultar el contenido completo del mensaje en nuestra [página web](https://nova.example/noticias/camino).",
-    );
-    expect(embed.image).toEqual({ url: "https://nova.example/uploads/banner.png" });
-    expect(embed.color).toBe(EMBED_COLOR.neutral);
+    expect(mensaje.flags).toBe(32768);
+    expect(mensaje).not.toHaveProperty("content");
+    expect(mensaje).not.toHaveProperty("embeds");
   });
 
-  it("sin cabecera, pie ni enlace en el título", () => {
-    const embed = construirEmbedCanalNoticia(noticia, url);
+  it("el contenedor lleva título, entradilla en cita y negrita con la frase fija, y la portada", () => {
+    const [contenedor] = construirMensajeCanalNoticia(noticia, url).components;
 
-    expect(embed.author).toBeUndefined();
-    expect(embed.footer).toBeUndefined();
-    expect(embed.url).toBeUndefined();
+    expect(contenedor).toEqual({
+      type: 17,
+      accent_color: EMBED_COLOR.neutral,
+      components: [
+        { type: 10, content: "## ¡Tú decides tu propio camino!" },
+        {
+          type: 10,
+          content:
+            "> **NOVA**\n\n-# Podrás consultar el contenido completo del mensaje en nuestra [página web](https://nova.example/noticias/camino).",
+        },
+        { type: 12, items: [{ media: { url: "https://nova.example/uploads/banner.png" } }] },
+      ],
+    });
+  });
+
+  it("sin portada no manda galería", () => {
+    const [contenedor] = construirMensajeCanalNoticia({ ...noticia, coverImage: null }, url)
+      .components;
+
+    expect(JSON.stringify(contenedor)).not.toContain('"type":12');
   });
 
   it("cita cada línea de una entradilla de varias y descarta las vacías", () => {
-    const embed = construirEmbedCanalNoticia({ ...noticia, excerpt: "Uno\n\n Dos " }, url);
+    const [contenedor] = construirMensajeCanalNoticia({ ...noticia, excerpt: "Uno\n\n Dos " }, url)
+      .components as { components: { content: string }[] }[];
 
-    expect(embed.description?.startsWith("> **Uno**\n> **Dos**\n\n-#")).toBe(true);
+    expect(contenedor.components[1].content.startsWith("> **Uno**\n> **Dos**\n\n-#")).toBe(true);
   });
 
-  it("sin portada no manda imagen", () => {
-    expect(construirEmbedCanalNoticia({ ...noticia, coverImage: null }, url).image).toBeUndefined();
+  it("sin rol, no hay mención y no se permite mencionar a nadie", () => {
+    const mensaje = construirMensajeCanalNoticia(noticia, url);
+
+    expect(mensaje.components).toHaveLength(1);
+    expect(mensaje.allowed_mentions).toEqual({ parse: [], roles: [] });
+  });
+
+  it("con rol, la mención tapada va debajo del contenedor y solo se permite ese rol", () => {
+    const mensaje = construirMensajeCanalNoticia(noticia, url, "123456789012345678");
+
+    expect(mensaje.components[1]).toEqual({ type: 10, content: "||<@&123456789012345678>||" });
+    expect(mensaje.allowed_mentions).toEqual({ parse: [], roles: ["123456789012345678"] });
   });
 });

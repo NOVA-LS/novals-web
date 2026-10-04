@@ -10,10 +10,11 @@ import { guardarImagen } from "@/lib/uploads";
 import { slugify } from "@/lib/utils";
 import { renderMarkdown } from "@/lib/markdown";
 import { esquemaNoticia } from "@/lib/noticias";
-import { enviarDM, listarCanales, publicarEnCanal } from "@/lib/discord";
+import { enviarDM, listarCanales, listarRoles, publicarEnCanal } from "@/lib/discord";
 import type { Embed } from "@/lib/embed";
 import { agruparPorCategoria, type GrupoDeCanales } from "@/lib/discord/canales";
-import { construirEmbedCanalNoticia, construirEmbedNoticia } from "@/lib/discord/noticia";
+import { rolesMencionables, type RolDiscord } from "@/lib/discord/menciones";
+import { construirEmbedNoticia, construirMensajeCanalNoticia } from "@/lib/discord/noticia";
 
 export type ResultadoNoticia = { ok: boolean; mensaje?: string };
 
@@ -57,6 +58,7 @@ async function avisarPublicacion(noticia: {
   slug: string;
   coverImage: string | null;
   channelId?: string | null;
+  roleId?: string | null;
   notificarPrivado: boolean;
 }) {
   const datos = {
@@ -68,7 +70,10 @@ async function avisarPublicacion(noticia: {
 
   await Promise.all([
     noticia.channelId
-      ? publicarEnCanal(noticia.channelId, construirEmbedCanalNoticia(datos, url))
+      ? publicarEnCanal(
+          noticia.channelId,
+          construirMensajeCanalNoticia(datos, url, noticia.roleId),
+        )
       : undefined,
     // Solo el privado dice cómo desactivarlo: en el canal no hay nada personal
     // que apagar. Tampoco comparten formato: el canal lleva el de comunicado.
@@ -139,6 +144,7 @@ export async function guardarNoticia(
     published: datos.get("published") === "on",
     notificarPrivado: datos.get("notificarPrivado") === "on",
     channelId: datos.get("channelId") ?? "",
+    roleId: datos.get("roleId") ?? "",
   });
 
   if (!parsed.success) {
@@ -165,7 +171,9 @@ export async function guardarNoticia(
     return { ok: false, mensaje: "Sube una imagen de portada." };
   }
 
-  const { channelId, ...campos } = parsed.data;
+  // Un rol sin canal no tiene dónde mencionarse: no se guarda.
+  const { channelId, roleId: rol, ...campos } = parsed.data;
+  const roleId = channelId ? rol : undefined;
   const slug = await slugLibre(campos.title, id ?? undefined);
   const publicando = campos.published;
   // Sin canal y sin privado no hay nada que avisar: no se da por avisada, para
@@ -182,6 +190,7 @@ export async function guardarNoticia(
       data: {
         ...campos,
         channelId,
+        roleId,
         slug,
         ...(portada
           ? { coverImage: portada.url, coverWidth: portada.width, coverHeight: portada.height }
@@ -197,6 +206,7 @@ export async function guardarNoticia(
         slug,
         coverImage: portada?.url ?? previa?.coverImage ?? null,
         channelId,
+        roleId,
       });
     }
   } else {
@@ -204,6 +214,7 @@ export async function guardarNoticia(
       data: {
         ...campos,
         channelId,
+        roleId,
         slug,
         coverImage: portada?.url,
         coverWidth: portada?.width,
@@ -220,6 +231,7 @@ export async function guardarNoticia(
         slug,
         coverImage: portada?.url ?? null,
         channelId,
+        roleId,
       });
     }
   }
@@ -246,6 +258,18 @@ export async function guardarNoticia(
 export async function previsualizarMarkdown(markdown: string): Promise<string> {
   await requireUser("ADMIN");
   return renderMarkdown(markdown);
+}
+/** Igual que los canales: se cachea un minuto para no golpear la API de Discord. */
+let cacheRoles: { hasta: number; roles: RolDiscord[] } | null = null;
+
+export async function listarRolesDiscord(): Promise<RolDiscord[]> {
+  await requireUser("ADMIN");
+
+  if (cacheRoles && cacheRoles.hasta > Date.now()) return cacheRoles.roles;
+
+  const roles = rolesMencionables(await listarRoles(), process.env.DISCORD_GUILD_ID?.trim());
+  cacheRoles = { hasta: Date.now() + DURACION_CACHE_MS, roles };
+  return roles;
 }
 
 export async function cambiarPublicacion(id: string, publicar: boolean) {
@@ -275,6 +299,7 @@ export async function cambiarPublicacion(id: string, publicar: boolean) {
       excerpt: true,
       coverImage: true,
       channelId: true,
+      roleId: true,
       notificarPrivado: true,
     },
   });
